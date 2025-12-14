@@ -1,0 +1,79 @@
+name: ci
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Install deps
+        run: uv sync --dev --frozen
+
+      - name: Guard tracked artifacts
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from __future__ import annotations
+          import os
+          import subprocess
+          tracked = subprocess.check_output(["git", "ls-files", "-z"]).split(b"\0")
+          allowed = {
+            "data/README.md",
+            "outputs/README.md",
+            "submissions/README.md",
+          }
+          forbidden: list[str] = []
+          for path in tracked:
+            if not path:
+              continue
+            p = path.decode("utf-8", errors="surrogateescape")
+            if p in allowed:
+              continue
+            if p.startswith(("data/", "outputs/", "submissions/")):
+              forbidden.append(p)
+          if forbidden:
+            raise SystemExit(
+              "ERROR: data/ outputs/ submissions/ 配下は原則コミットしないでください。\n"
+              + "\n".join(forbidden)
+            )
+          limit = 20 * 1024 * 1024  # 20MB
+          bad: list[str] = []
+          for path in tracked:
+            if not path:
+              continue
+            p = path.decode("utf-8", errors="surrogateescape")
+            try:
+              size = os.path.getsize(p)
+            except OSError:
+              continue
+            if size > limit:
+              bad.append(f"{p} ({size/1024/1024:.1f}MB)")
+          if bad:
+            raise SystemExit("ERROR: Large tracked files detected:\n" + "\n".join(bad))
+          PY
+
+      - name: Lint
+        run: |
+          uv run ruff check .
+          uv run ruff format --check .
+
+      - name: Test
+        run: uv run pytest -q
+
+      - name: Smoke experiment
+        run: uv run python experiments/exp000_sample/run.py exp=001 exp.debug=true

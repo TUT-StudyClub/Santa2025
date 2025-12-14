@@ -1,0 +1,13 @@
+# 競技に応じて依存関係を追加してください（チーム用の最小構成の例）
+click
+hydra-core
+kaggle
+matplotlib
+numpy
+pandas
+psutil
+python-dotenv
+scikit-learn
+seaborn
+tqdm
+pyyaml

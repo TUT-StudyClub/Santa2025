@@ -1,0 +1,77 @@
+# === OS / Editor ===
+.DS_Store
+Thumbs.db
+.vscode/*
+!.vscode/settings.json
+!.vscode/extensions.json
+.idea/
+
+# === Python ===
+__pycache__/
+*.py[cod]
+*.so
+*.egg-info/
+build/
+dist/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Virtualenv
+.venv/
+venv/
+ENV/
+
+# Secrets / env
+.env
+.env.*
+!.env.example
+
+# === Jupyter ===
+.ipynb_checkpoints/
+.jupyter/
+.ipython/
+.virtual_documents/
+
+# === Kaggle credentials ===
+kaggle.json
+.kaggle/
+.netrc
+
+# === Data / artifacts (keep only README) ===
+data/*
+!data/README.md
+
+outputs/*
+!outputs/README.md
+
+# Experiment outputs (keep only gitkeep)
+experiments/**/output/*
+!experiments/**/output/.gitkeep
+
+submissions/*
+!submissions/README.md
+
+# Common ML artifacts
+*.pkl
+*.pickle
+*.joblib
+*.h5
+*.hdf5
+*.pt
+*.pth
+*.ckpt
+*.onnx
+*.npy
+*.npz
+*.parquet
+*.feather
+
+# Experiment tracking
+wandb/
+mlruns/
+.hydra/
+
+# Caches / temp
+.cache/
+tmp/

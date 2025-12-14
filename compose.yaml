@@ -1,0 +1,25 @@
+services:
+  kaggle:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    env_file:
+      - .env
+    volumes:
+      - $PWD:/kaggle/working
+      - $PWD/data:/kaggle/input
+      - $PWD/.cache:/root/.cache
+      - ~/.kaggle:/root/.kaggle
+    working_dir: /kaggle/working
+    ports:
+      - 8889:8889
+    command: jupyter lab --allow-root --ip=0.0.0.0 --port=8889 --no-browser --NotebookApp.token=''
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    shm_size: '15gb'
+
