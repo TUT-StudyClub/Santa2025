@@ -3,7 +3,6 @@ click
 hydra-core
 kaggle
 matplotlib
-numpy
 pandas
 psutil
 python-dotenv
@@ -11,3 +10,5 @@ scikit-learn
 seaborn
 tqdm
 pyyaml
+shapely==2.1.2
+numpy<2.0.0
