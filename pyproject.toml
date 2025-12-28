@@ -20,6 +20,7 @@ dependencies = [
   "pyyaml",
   "scikit-learn",
   "seaborn",
+  "shapely",
   "tqdm",
 ]
 
