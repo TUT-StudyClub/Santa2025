@@ -18,7 +18,7 @@ tree_shape:
 sa_params:
   Tmax: 0.001
   Tmin: 0.000001
-  nsteps: 200
+  nsteps: 150
   nsteps_per_T: 10000
   position_delta: 0.002
   angle_delta: 1.0
