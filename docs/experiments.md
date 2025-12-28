@@ -5,5 +5,5 @@
 
 | Date | Author | Branch/PR | Change | Seed | CV | LB | Command/Config | Note |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| 2025-12-28 | yuhei | - | exp001_baseline greedy packing | 42 | score=178.9197 | - | `uv run python experiments/exp001_baseline/run.py exp=000` | n=200, metrics.json |
 | 2025-12-14 | - | - | init repo ops | - | - | - | - | 運用テンプレ整備 |
-
