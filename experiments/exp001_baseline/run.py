@@ -455,9 +455,7 @@ def reinsert_trees(
         rng.shuffle(order)
 
         for idx in order:
-            other_polygons = [
-                tree.polygon for i, tree in enumerate(placed_trees) if i != idx
-            ]
+            other_polygons = [tree.polygon for i, tree in enumerate(placed_trees) if i != idx]
             tree_index = STRtree(other_polygons) if other_polygons else None
             current_bounds = (
                 compute_bounds_from_polygons(other_polygons) if other_polygons else None
@@ -522,8 +520,7 @@ def recenter_trees(
 
     limit = Decimal(str(xy_limit))
     max_after_shift = max(
-        max(abs(tree.center_x - center_x), abs(tree.center_y - center_y))
-        for tree in placed_trees
+        max(abs(tree.center_x - center_x), abs(tree.center_y - center_y)) for tree in placed_trees
     )
     if max_after_shift > limit:
         return
@@ -617,9 +614,7 @@ def validate_xy_bounds(trees: list[ChristmasTree], xy_limit: float) -> None:
     limit = Decimal(str(xy_limit))
     max_val = max(max(abs(tree.center_x), abs(tree.center_y)) for tree in trees)
     if max_val > limit:
-        raise ValueError(
-            f"center coordinate out of bounds: max_abs={max_val} limit={limit}"
-        )
+        raise ValueError(f"center coordinate out of bounds: max_abs={max_val} limit={limit}")
 
 
 def summarize_metrics(
