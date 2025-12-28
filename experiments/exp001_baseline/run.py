@@ -19,6 +19,7 @@ from omegaconf import OmegaConf
 from shapely import affinity
 from shapely.geometry import Polygon
 from shapely.strtree import STRtree
+from tqdm import tqdm
 
 from utils.env import EnvConfig
 from utils.logger import get_logger
@@ -50,6 +51,7 @@ class ExpConfig:
     reinsert_every: int = 1
     reinsert_rotate: bool = True
     recenter_every: int = 0
+    progress: bool = True
     note: str = ""
 
 
@@ -663,7 +665,11 @@ def main(cfg: Config) -> None:
     side_lengths: list[float] = []
 
     with trace("packing"):
-        for n_trees in range(1, max_trees + 1):
+        for n_trees in tqdm(
+            range(1, max_trees + 1),
+            desc="packing",
+            disable=not cfg.exp.progress,
+        ):
             placed_trees, side_length = initialize_trees(
                 n_trees,
                 rng=rng,

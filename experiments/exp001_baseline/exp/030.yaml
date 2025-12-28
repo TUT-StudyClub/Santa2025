@@ -19,4 +19,5 @@ reinsert_attempts: 60
 reinsert_every: 1
 reinsert_rotate: true
 recenter_every: 1
+progress: true
 note: heavy search + recenter

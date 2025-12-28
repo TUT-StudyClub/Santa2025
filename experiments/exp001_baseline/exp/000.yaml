@@ -19,4 +19,5 @@ reinsert_attempts: 10
 reinsert_every: 1
 reinsert_rotate: true
 recenter_every: 0
+progress: true
 note: greedy baseline
