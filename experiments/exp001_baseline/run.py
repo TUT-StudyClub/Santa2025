@@ -20,7 +20,6 @@ from shapely import affinity
 from shapely.geometry import Polygon
 from shapely.strtree import STRtree
 from tqdm import tqdm
-
 from utils.env import EnvConfig
 from utils.logger import get_logger
 from utils.timing import trace
