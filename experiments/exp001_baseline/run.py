@@ -3,11 +3,11 @@ from __future__ import annotations
 import json
 import math
 import random
+from collections.abc import Iterable
 from dataclasses import dataclass, field
 from datetime import datetime
 from decimal import Decimal, getcontext
 from pathlib import Path
-from typing import Iterable
 
 import hydra
 import numpy as np
@@ -189,7 +189,10 @@ def compute_side_length(placed_trees: list[ChristmasTree], scale_factor: Decimal
     return side_length_from_bounds(compute_bounds(placed_trees), scale_factor)
 
 
-def compute_bounds_center(placed_trees: list[ChristmasTree], scale_factor: Decimal) -> tuple[Decimal, Decimal]:
+def compute_bounds_center(
+    placed_trees: list[ChristmasTree],
+    scale_factor: Decimal,
+) -> tuple[Decimal, Decimal]:
     minx, miny, maxx, maxy = compute_bounds(placed_trees)
     center_x = (Decimal(minx) + Decimal(maxx)) / scale_factor / Decimal("2")
     center_y = (Decimal(miny) + Decimal(maxy)) / scale_factor / Decimal("2")
