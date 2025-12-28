@@ -2,16 +2,16 @@ debug: false
 debug_max_trees: 30
 seed: 42
 max_trees: 200
-attempts_per_tree: 10
+attempts_per_tree: 40
 start_radius: 20.0
-step_in: 0.5
+step_in: 0.4
 step_out: 0.05
 angle_weighted: true
 plot_every: 0
 decimal_precision: 25
 scale_factor: "1e15"
 xy_limit: 100.0
-compact_iters: 0
+compact_iters: 2
 compact_every: 1
 compact_step_in: 0.2
 reinsert_iters: 0
@@ -19,4 +19,4 @@ reinsert_attempts: 10
 reinsert_every: 1
 reinsert_rotate: true
 recenter_every: 0
-note: greedy baseline
+note: aggressive compaction

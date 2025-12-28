@@ -18,7 +18,6 @@ from hydra.core.hydra_config import HydraConfig
 from omegaconf import OmegaConf
 from shapely import affinity
 from shapely.geometry import Polygon
-from shapely.ops import unary_union
 from shapely.strtree import STRtree
 
 from utils.env import EnvConfig
@@ -43,6 +42,14 @@ class ExpConfig:
     decimal_precision: int = 25
     scale_factor: str = "1e15"
     xy_limit: float = 100.0
+    compact_iters: int = 0
+    compact_every: int = 1
+    compact_step_in: float = 0.2
+    reinsert_iters: int = 0
+    reinsert_attempts: int = 10
+    reinsert_every: int = 1
+    reinsert_rotate: bool = True
+    recenter_every: int = 0
     note: str = ""
 
 
@@ -135,15 +142,137 @@ def build_tree_base_polygon(scale_factor: Decimal) -> Polygon:
     )
 
 
-def create_tree(angle_deg: float, base_polygon: Polygon) -> ChristmasTree:
-    angle = Decimal(str(angle_deg))
-    rotated = affinity.rotate(base_polygon, float(angle), origin=(0, 0))
-    return ChristmasTree(
-        center_x=Decimal("0"),
-        center_y=Decimal("0"),
-        angle=angle,
-        polygon=rotated,
-    )
+def compute_bounds_from_polygons(polygons: list[Polygon]) -> tuple[float, float, float, float]:
+    if not polygons:
+        return 0.0, 0.0, 0.0, 0.0
+    minx, miny, maxx, maxy = polygons[0].bounds
+    for poly in polygons[1:]:
+        b_minx, b_miny, b_maxx, b_maxy = poly.bounds
+        minx = min(minx, b_minx)
+        miny = min(miny, b_miny)
+        maxx = max(maxx, b_maxx)
+        maxy = max(maxy, b_maxy)
+    return minx, miny, maxx, maxy
+
+
+def compute_bounds(placed_trees: list[ChristmasTree]) -> tuple[float, float, float, float]:
+    return compute_bounds_from_polygons([t.polygon for t in placed_trees])
+
+
+def merge_bounds(
+    base_bounds: tuple[float, float, float, float] | None,
+    add_bounds: tuple[float, float, float, float] | None,
+) -> tuple[float, float, float, float]:
+    if base_bounds is None:
+        return add_bounds if add_bounds is not None else (0.0, 0.0, 0.0, 0.0)
+    if add_bounds is None:
+        return base_bounds
+    minx = min(base_bounds[0], add_bounds[0])
+    miny = min(base_bounds[1], add_bounds[1])
+    maxx = max(base_bounds[2], add_bounds[2])
+    maxy = max(base_bounds[3], add_bounds[3])
+    return minx, miny, maxx, maxy
+
+
+def side_length_from_bounds(
+    bounds: tuple[float, float, float, float],
+    scale_factor: Decimal,
+) -> Decimal:
+    width = Decimal(bounds[2] - bounds[0]) / scale_factor
+    height = Decimal(bounds[3] - bounds[1]) / scale_factor
+    return max(width, height)
+
+
+def compute_side_length(placed_trees: list[ChristmasTree], scale_factor: Decimal) -> Decimal:
+    return side_length_from_bounds(compute_bounds(placed_trees), scale_factor)
+
+
+def compute_bounds_center(placed_trees: list[ChristmasTree], scale_factor: Decimal) -> tuple[Decimal, Decimal]:
+    minx, miny, maxx, maxy = compute_bounds(placed_trees)
+    center_x = (Decimal(minx) + Decimal(maxx)) / scale_factor / Decimal("2")
+    center_y = (Decimal(miny) + Decimal(maxy)) / scale_factor / Decimal("2")
+    return center_x, center_y
+
+
+def collides(candidate: Polygon, polygons: list[Polygon], skip_idx: int) -> bool:
+    for idx, poly in enumerate(polygons):
+        if idx == skip_idx:
+            continue
+        if candidate.intersects(poly) and not candidate.touches(poly):
+            return True
+    return False
+
+
+def collides_with_any(
+    candidate: Polygon,
+    polygons: list[Polygon],
+    tree_index: STRtree | None,
+) -> bool:
+    if not polygons:
+        return False
+    if tree_index is None:
+        indices = range(len(polygons))
+    else:
+        indices = tree_index.query(candidate)
+    for idx in indices:
+        if candidate.intersects(polygons[idx]) and not candidate.touches(polygons[idx]):
+            return True
+    return False
+
+
+def find_position_along_vector(
+    polygon: Polygon,
+    *,
+    direction_angle: float,
+    scale_factor: Decimal,
+    start_radius: Decimal,
+    step_in: Decimal,
+    step_out: Decimal,
+    placed_polygons: list[Polygon],
+    tree_index: STRtree | None,
+) -> tuple[Decimal, Decimal, Polygon]:
+    vx = Decimal(str(math.cos(direction_angle)))
+    vy = Decimal(str(math.sin(direction_angle)))
+    radius = start_radius
+    collision_found = False
+
+    while radius >= 0:
+        px = radius * vx
+        py = radius * vy
+
+        candidate = affinity.translate(
+            polygon,
+            xoff=float(px * scale_factor),
+            yoff=float(py * scale_factor),
+        )
+        if collides_with_any(candidate, placed_polygons, tree_index):
+            collision_found = True
+            break
+        radius -= step_in
+
+    if collision_found:
+        while True:
+            radius += step_out
+            px = radius * vx
+            py = radius * vy
+            candidate = affinity.translate(
+                polygon,
+                xoff=float(px * scale_factor),
+                yoff=float(py * scale_factor),
+            )
+            if not collides_with_any(candidate, placed_polygons, tree_index):
+                break
+    else:
+        radius = Decimal("0")
+        px = Decimal("0")
+        py = Decimal("0")
+        candidate = affinity.translate(
+            polygon,
+            xoff=float(px * scale_factor),
+            yoff=float(py * scale_factor),
+        )
+
+    return px, py, candidate
 
 
 def generate_weighted_angle(rng: random.Random) -> float:
@@ -172,101 +301,236 @@ def initialize_trees(
     step_in = Decimal(str(cfg.step_in))
     step_out = Decimal(str(cfg.step_out))
 
+    placed_polygons = [t.polygon for t in placed_trees]
+    current_bounds = compute_bounds_from_polygons(placed_polygons) if placed_polygons else None
+
     if num_to_add > 0:
-        unplaced_trees = [create_tree(rng.uniform(0, 360), base_polygon) for _ in range(num_to_add)]
-        if not placed_trees:
-            placed_trees.append(unplaced_trees.pop(0))
+        for _ in range(num_to_add):
+            tree_index = STRtree(placed_polygons) if placed_polygons else None
 
-        for tree_to_place in unplaced_trees:
-            placed_polygons = [p.polygon for p in placed_trees]
-            tree_index = STRtree(placed_polygons)
-
-            best_px = None
-            best_py = None
-            min_radius = Decimal("Infinity")
+            best_candidate: tuple[Decimal, Decimal, float, Polygon] | None = None
+            best_bounds: tuple[float, float, float, float] | None = None
+            best_side: Decimal | None = None
 
             for _ in range(max(cfg.attempts_per_tree, 1)):
-                angle = (
+                angle_deg = rng.uniform(0, 360)
+                rotated = affinity.rotate(base_polygon, float(angle_deg), origin=(0, 0))
+                direction_angle = (
                     generate_weighted_angle(rng)
                     if cfg.angle_weighted
                     else rng.uniform(0, 2 * math.pi)
                 )
-                vx = Decimal(str(math.cos(angle)))
-                vy = Decimal(str(math.sin(angle)))
 
-                radius = start_radius
-                collision_found = False
-                while radius >= 0:
-                    px = radius * vx
-                    py = radius * vy
+                px, py, candidate_poly = find_position_along_vector(
+                    rotated,
+                    direction_angle=direction_angle,
+                    scale_factor=scale_factor,
+                    start_radius=start_radius,
+                    step_in=step_in,
+                    step_out=step_out,
+                    placed_polygons=placed_polygons,
+                    tree_index=tree_index,
+                )
 
-                    candidate_poly = affinity.translate(
-                        tree_to_place.polygon,
-                        xoff=float(px * scale_factor),
-                        yoff=float(py * scale_factor),
-                    )
+                merged_bounds = merge_bounds(current_bounds, candidate_poly.bounds)
+                side_length = side_length_from_bounds(merged_bounds, scale_factor)
 
-                    possible_indices = tree_index.query(candidate_poly)
-                    if any(
-                        candidate_poly.intersects(placed_polygons[i])
-                        and not candidate_poly.touches(placed_polygons[i])
-                        for i in possible_indices
-                    ):
-                        collision_found = True
-                        break
-                    radius -= step_in
+                if best_side is None or side_length < best_side:
+                    best_side = side_length
+                    best_bounds = merged_bounds
+                    best_candidate = (px, py, angle_deg, candidate_poly)
 
-                if collision_found:
-                    while True:
-                        radius += step_out
-                        px = radius * vx
-                        py = radius * vy
+            if best_candidate is None:
+                angle_deg = rng.uniform(0, 360)
+                rotated = affinity.rotate(base_polygon, float(angle_deg), origin=(0, 0))
+                px = Decimal("0")
+                py = Decimal("0")
+                candidate_poly = affinity.translate(
+                    rotated,
+                    xoff=float(px * scale_factor),
+                    yoff=float(py * scale_factor),
+                )
+                best_bounds = merge_bounds(current_bounds, candidate_poly.bounds)
+                best_candidate = (px, py, angle_deg, candidate_poly)
 
-                        candidate_poly = affinity.translate(
-                            tree_to_place.polygon,
-                            xoff=float(px * scale_factor),
-                            yoff=float(py * scale_factor),
-                        )
-
-                        possible_indices = tree_index.query(candidate_poly)
-                        if not any(
-                            candidate_poly.intersects(placed_polygons[i])
-                            and not candidate_poly.touches(placed_polygons[i])
-                            for i in possible_indices
-                        ):
-                            break
-                else:
-                    radius = Decimal("0")
-                    px = Decimal("0")
-                    py = Decimal("0")
-
-                if radius < min_radius:
-                    min_radius = radius
-                    best_px = px
-                    best_py = py
-
-            tree_to_place.center_x = best_px
-            tree_to_place.center_y = best_py
-            tree_to_place.polygon = affinity.translate(
-                tree_to_place.polygon,
-                xoff=float(tree_to_place.center_x * scale_factor),
-                yoff=float(tree_to_place.center_y * scale_factor),
+            px, py, angle_deg, candidate_poly = best_candidate
+            placed_trees.append(
+                ChristmasTree(
+                    center_x=px,
+                    center_y=py,
+                    angle=Decimal(str(angle_deg)),
+                    polygon=candidate_poly,
+                )
             )
-            placed_trees.append(tree_to_place)
+            placed_polygons.append(candidate_poly)
+            current_bounds = best_bounds
 
-    all_polygons = [t.polygon for t in placed_trees]
-    bounds = unary_union(all_polygons).bounds
-
-    minx = Decimal(bounds[0]) / scale_factor
-    miny = Decimal(bounds[1]) / scale_factor
-    maxx = Decimal(bounds[2]) / scale_factor
-    maxy = Decimal(bounds[3]) / scale_factor
-
-    width = maxx - minx
-    height = maxy - miny
-    side_length = max(width, height)
+    side_length = compute_side_length(placed_trees, scale_factor)
 
     return placed_trees, side_length
+
+
+def compact_trees(
+    placed_trees: list[ChristmasTree],
+    *,
+    rng: random.Random,
+    scale_factor: Decimal,
+    cfg: ExpConfig,
+) -> None:
+    if cfg.compact_iters <= 0 or len(placed_trees) < 2:
+        return
+
+    step_in = Decimal(str(cfg.compact_step_in))
+    polygons = [t.polygon for t in placed_trees]
+
+    for _ in range(cfg.compact_iters):
+        center_x, center_y = compute_bounds_center(placed_trees, scale_factor)
+        order = list(range(len(placed_trees)))
+        rng.shuffle(order)
+
+        for idx in order:
+            tree = placed_trees[idx]
+            dx = center_x - tree.center_x
+            dy = center_y - tree.center_y
+            dist = math.hypot(float(dx), float(dy))
+            if dist < 1e-9:
+                continue
+
+            vx = Decimal(str(float(dx) / dist))
+            vy = Decimal(str(float(dy) / dist))
+            max_radius = Decimal(str(dist))
+
+            best_radius = Decimal("0")
+            radius = step_in
+            while radius <= max_radius:
+                cand_x = tree.center_x + vx * radius
+                cand_y = tree.center_y + vy * radius
+                candidate_poly = affinity.translate(
+                    tree.polygon,
+                    xoff=float((cand_x - tree.center_x) * scale_factor),
+                    yoff=float((cand_y - tree.center_y) * scale_factor),
+                )
+
+                if collides(candidate_poly, polygons, idx):
+                    break
+                best_radius = radius
+                radius += step_in
+
+            if best_radius > 0:
+                cand_x = tree.center_x + vx * best_radius
+                cand_y = tree.center_y + vy * best_radius
+                candidate_poly = affinity.translate(
+                    tree.polygon,
+                    xoff=float((cand_x - tree.center_x) * scale_factor),
+                    yoff=float((cand_y - tree.center_y) * scale_factor),
+                )
+                tree.center_x = cand_x
+                tree.center_y = cand_y
+                tree.polygon = candidate_poly
+                polygons[idx] = candidate_poly
+
+
+def reinsert_trees(
+    placed_trees: list[ChristmasTree],
+    *,
+    rng: random.Random,
+    base_polygon: Polygon,
+    scale_factor: Decimal,
+    cfg: ExpConfig,
+) -> None:
+    if cfg.reinsert_iters <= 0 or len(placed_trees) < 2:
+        return
+
+    start_radius = Decimal(str(cfg.start_radius))
+    step_in = Decimal(str(cfg.step_in))
+    step_out = Decimal(str(cfg.step_out))
+    attempts = max(cfg.reinsert_attempts, 1)
+
+    for _ in range(cfg.reinsert_iters):
+        order = list(range(len(placed_trees)))
+        rng.shuffle(order)
+
+        for idx in order:
+            other_polygons = [
+                tree.polygon for i, tree in enumerate(placed_trees) if i != idx
+            ]
+            tree_index = STRtree(other_polygons) if other_polygons else None
+            current_bounds = (
+                compute_bounds_from_polygons(other_polygons) if other_polygons else None
+            )
+
+            baseline_bounds = merge_bounds(current_bounds, placed_trees[idx].polygon.bounds)
+            best_bounds = baseline_bounds
+            best_side = side_length_from_bounds(best_bounds, scale_factor)
+            best_candidate: tuple[Decimal, Decimal, float, Polygon] | None = None
+
+            for _ in range(attempts):
+                if cfg.reinsert_rotate:
+                    angle_deg = rng.uniform(0, 360)
+                else:
+                    angle_deg = float(placed_trees[idx].angle)
+
+                rotated = affinity.rotate(base_polygon, float(angle_deg), origin=(0, 0))
+                direction_angle = (
+                    generate_weighted_angle(rng)
+                    if cfg.angle_weighted
+                    else rng.uniform(0, 2 * math.pi)
+                )
+                px, py, candidate_poly = find_position_along_vector(
+                    rotated,
+                    direction_angle=direction_angle,
+                    scale_factor=scale_factor,
+                    start_radius=start_radius,
+                    step_in=step_in,
+                    step_out=step_out,
+                    placed_polygons=other_polygons,
+                    tree_index=tree_index,
+                )
+
+                merged_bounds = merge_bounds(current_bounds, candidate_poly.bounds)
+                side_length = side_length_from_bounds(merged_bounds, scale_factor)
+
+                if side_length < best_side:
+                    best_side = side_length
+                    best_bounds = merged_bounds
+                    best_candidate = (px, py, angle_deg, candidate_poly)
+
+            if best_candidate is not None:
+                px, py, angle_deg, candidate_poly = best_candidate
+                placed_trees[idx].center_x = px
+                placed_trees[idx].center_y = py
+                placed_trees[idx].angle = Decimal(str(angle_deg))
+                placed_trees[idx].polygon = candidate_poly
+
+
+def recenter_trees(
+    placed_trees: list[ChristmasTree],
+    *,
+    scale_factor: Decimal,
+    xy_limit: float,
+) -> None:
+    if not placed_trees:
+        return
+
+    center_x, center_y = compute_bounds_center(placed_trees, scale_factor)
+    if center_x == 0 and center_y == 0:
+        return
+
+    limit = Decimal(str(xy_limit))
+    max_after_shift = max(
+        max(abs(tree.center_x - center_x), abs(tree.center_y - center_y))
+        for tree in placed_trees
+    )
+    if max_after_shift > limit:
+        return
+
+    dx = -center_x * scale_factor
+    dy = -center_y * scale_factor
+
+    for tree in placed_trees:
+        tree.center_x -= center_x
+        tree.center_y -= center_y
+        tree.polygon = affinity.translate(tree.polygon, xoff=float(dx), yoff=float(dy))
 
 
 def plot_results(
@@ -282,8 +546,7 @@ def plot_results(
     _, ax = plt.subplots(figsize=(6, 6))
     colors = plt.cm.viridis([i / num_trees for i in range(num_trees)])
 
-    all_polygons = [t.polygon for t in placed_trees]
-    bounds = unary_union(all_polygons).bounds
+    bounds = compute_bounds(placed_trees)
 
     for i, tree in enumerate(placed_trees):
         x_scaled, y_scaled = tree.polygon.exterior.xy
@@ -409,6 +672,31 @@ def main(cfg: Config) -> None:
                 cfg=cfg.exp,
                 existing_trees=placed_trees,
             )
+            if cfg.exp.compact_iters > 0 and n_trees % max(cfg.exp.compact_every, 1) == 0:
+                compact_trees(
+                    placed_trees,
+                    rng=rng,
+                    scale_factor=scale_factor,
+                    cfg=cfg.exp,
+                )
+            if cfg.exp.reinsert_iters > 0 and n_trees % max(cfg.exp.reinsert_every, 1) == 0:
+                reinsert_trees(
+                    placed_trees,
+                    rng=rng,
+                    base_polygon=base_polygon,
+                    scale_factor=scale_factor,
+                    cfg=cfg.exp,
+                )
+
+            if cfg.exp.recenter_every > 0 and n_trees % max(cfg.exp.recenter_every, 1) == 0:
+                recenter_trees(
+                    placed_trees,
+                    scale_factor=scale_factor,
+                    xy_limit=cfg.exp.xy_limit,
+                )
+
+            side_length = compute_side_length(placed_trees, scale_factor)
+            validate_xy_bounds(placed_trees, cfg.exp.xy_limit)
             side_lengths.append(float(side_length))
 
             if cfg.exp.plot_every > 0 and n_trees % cfg.exp.plot_every == 0:
@@ -417,8 +705,6 @@ def main(cfg: Config) -> None:
 
             for tree in placed_trees:
                 tree_data.append([tree.center_x, tree.center_y, tree.angle])
-
-    validate_xy_bounds(placed_trees, cfg.exp.xy_limit)
 
     metrics = summarize_metrics(side_lengths, cfg.exp)
     (output_dir / "metrics.json").write_text(

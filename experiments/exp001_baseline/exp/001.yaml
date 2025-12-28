@@ -11,4 +11,12 @@ plot_every: 10
 decimal_precision: 25
 scale_factor: "1e15"
 xy_limit: 100.0
+compact_iters: 0
+compact_every: 1
+compact_step_in: 0.2
+reinsert_iters: 0
+reinsert_attempts: 10
+reinsert_every: 1
+reinsert_rotate: true
+recenter_every: 0
 note: quick debug with plots
