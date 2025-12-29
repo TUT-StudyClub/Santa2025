@@ -8,6 +8,7 @@ psutil
 python-dotenv
 scikit-learn
 seaborn
+shapely
 tqdm
 pyyaml
 shapely==2.1.2
