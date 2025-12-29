@@ -322,10 +322,14 @@ def sa_optimize_improved(
                 old_y = seed_ys[i]
                 old_deg = seed_degs[i]
 
-                dx = (np.random.random() * 2.0 - 1.0) * position_delta
-                dy = (np.random.random() * 2.0 - 1.0) * position_delta
-                ddeg = (np.random.random() * 2.0 - 1.0) * angle_delta
+                progress = step / nsteps
+                decay = 1.0 - 0.9 * progress
+                cur_pos_delta = position_delta * decay
+                cur_ang_delta = angle_delta * decay
 
+                dx = (np.random.random() * 2.0 - 1.0) * cur_pos_delta
+                dy = (np.random.random() * 2.0 - 1.0) * cur_pos_delta
+                ddeg = (np.random.random() * 2.0 - 1.0) * cur_ang_delta
                 seed_xs[i] += dx
                 seed_ys[i] += dy
                 seed_degs[i] = (seed_degs[i] + ddeg) % 360.0
