@@ -6,7 +6,7 @@ import pandas as pd
 # ファイルパスの設定 (環境に合わせて変更してください)
 # ==========================================
 # 重なりエラーが出ている現在のファイル
-target_csv = "submissions/submission_fix.csv"
+target_csv = "submissions/submission.csv"
 # 安全なベースラインファイル (サンプル投稿)
 baseline_csv = "data/raw/sample_submission.csv"
 # 出力ファイル名

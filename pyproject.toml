@@ -13,7 +13,7 @@ dependencies = [
   "hydra-core",
   "kaggle",
   "matplotlib",
-  "numpy",
+  "numpy<2.0",
   "pandas",
   "psutil",
   "python-dotenv",
