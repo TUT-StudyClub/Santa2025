@@ -3,7 +3,6 @@ click
 hydra-core
 kaggle
 matplotlib
-numpy
 pandas
 psutil
 python-dotenv
@@ -12,3 +11,5 @@ seaborn
 shapely
 tqdm
 pyyaml
+shapely==2.1.2
+numpy<2.0.0
