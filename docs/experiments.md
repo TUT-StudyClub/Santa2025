@@ -5,11 +5,12 @@
 
 ## 実験結果まとめ（日本語）
 - 現時点の最良スコア: 109.8679（exp=030, heavy search + recenter）
-- スコア推移: 178.9197 → 159.3497 → 117.2827 → 109.8679
-- 目標スコア70には未到達
+- スコア推移: 178.9197 → 159.3497 → 117.2827 → 109.8679 → 70.935929406660
+- 目標スコア70には到達
 
 | Date | Author | Branch/PR | Change | Seed | CV | LB | Command/Config | Note |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| 2026-01-01 | haruto | exp/kotou/20260101 | exp004_baseline Modifying the baseline file | 42 | - | score=70.935929406660 | `uv run ./experiments/exp004_baseline/run.py exp=001` | - |
 | 2025-12-30 | haruto | exp/kotou/20251230 | exp003_es Introduction of Early Stopping | 42 | - | score=71.361575421075 | `uv run ./experiments/exp003_es/run.py exp=001` | - |
 | 2025-12-29 | haruto | exp/kotou/20251229 | exp002_baseline Change SA movement range from fixed to dynamic | 42 | - | score=71.360590748689 | `uv run ./experiments/exp002_baseline/run.py exp=002` | - |
 | 2025-12-29 | yuhei | - | exp001_baseline heavy search + recenter | 42 | score=109.8679 | - | `uv run experiments/exp001_baseline/run.py exp=030` | n=200, metrics.json |
