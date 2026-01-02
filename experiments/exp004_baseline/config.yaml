@@ -1,0 +1,12 @@
+defaults:
+  - _self_
+  - exp: default
+  - env: default
+  - override hydra/job_logging: none
+
+hydra:
+  output_subdir: null
+  job:
+    chdir: false
+  run:
+    dir: .
