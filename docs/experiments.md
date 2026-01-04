@@ -10,6 +10,7 @@
 
 | Date | Author | Branch/PR | Change | Seed | CV | LB | Command/Config | Note |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| 2026-01-04 | haruto | exp/kotou/20260104 | exp006_hill 貪欲法の実装 | 42 | - | score=70.909422580984 | `uv run ./experiments/exp006_hill/run.py exp=001` | - |
 | 2026-01-01 | haruto | exp/kotou/20260101 | exp004_baseline Modifying the baseline file | 42 | - | score=70.935929406660 | `uv run ./experiments/exp004_baseline/run.py exp=001` | - |
 | 2025-12-30 | haruto | exp/kotou/20251230 | exp003_es Introduction of Early Stopping | 42 | - | score=71.361575421075 | `uv run ./experiments/exp003_es/run.py exp=001` | - |
 | 2025-12-29 | haruto | exp/kotou/20251229 | exp002_baseline Change SA movement range from fixed to dynamic | 42 | - | score=71.360590748689 | `uv run ./experiments/exp002_baseline/run.py exp=002` | - |
