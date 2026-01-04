@@ -19,5 +19,14 @@ reinsert_attempts: 60
 reinsert_every: 1
 reinsert_rotate: true
 recenter_every: 1
+anneal_iters: 0
+anneal_every: 1
+anneal_move: 0.2
+anneal_rotate_deg: 5.0
+anneal_start_temp: 0.05
+anneal_end_temp: 0.005
+beam_width: 1
+beam_expansions: 1
+beam_start_n: 1
 progress: true
 note: heavy search + recenter
