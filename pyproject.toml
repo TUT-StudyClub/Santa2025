@@ -13,6 +13,7 @@ dependencies = [
   "hydra-core",
   "kaggle",
   "matplotlib",
+  "numba",
   "numpy<2.0",
   "pandas",
   "psutil",
