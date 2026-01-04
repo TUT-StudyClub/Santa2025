@@ -12,6 +12,7 @@
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | 2026-01-04 | yuhei | - | exp004_baseline shrink on baseline.csv | 42 | - | score=70.924429 | `uv run ./experiments/exp004_baseline/run.py exp=004` | baseline.csv, shrink |
 | 2026-01-03 | yuhei | - | exp004_baseline shear+multistart+polish | 42 | - | score=82.898630 | `uv run ./experiments/exp004_baseline/run.py exp=003` | fallback baseline autogen |
+| 2026-01-03 | haruto | exp/kotou/20260103 | exp005_reheat Reheatingの実装 | 42 | - | score=70.924430272852 | `uv run ./experiments/exp005_reheat/run.py exp=001` | - |
 | 2026-01-01 | haruto | exp/kotou/20260101 | exp004_baseline Modifying the baseline file | 42 | - | score=70.935929406660 | `uv run ./experiments/exp004_baseline/run.py exp=001` | - |
 | 2025-12-30 | haruto | exp/kotou/20251230 | exp003_es Introduction of Early Stopping | 42 | - | score=71.361575421075 | `uv run ./experiments/exp003_es/run.py exp=001` | - |
 | 2025-12-29 | haruto | exp/kotou/20251229 | exp002_baseline Change SA movement range from fixed to dynamic | 42 | - | score=71.360590748689 | `uv run ./experiments/exp002_baseline/run.py exp=002` | - |
