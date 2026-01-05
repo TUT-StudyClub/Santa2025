@@ -47,8 +47,14 @@ MULTI_START_DEFAULT = {
     "jitter_shear": 0.0,
 }
 POLISH_DEFAULT = {"enabled": False}
+HILL_DEFAULT = {"enabled": False}
+ROTATE_DEFAULT = {"enabled": False}
+SHRINK_ANISO_DEFAULT = {"enabled": False}
 MULTI_START = merge_defaults(MULTI_START_DEFAULT, CONFIG.get("multi_start"))
 POLISH = merge_defaults(POLISH_DEFAULT, CONFIG.get("polish"))
+HILL = merge_defaults(HILL_DEFAULT, CONFIG.get("hill"))
+ROTATE = merge_defaults(ROTATE_DEFAULT, CONFIG.get("rotate"))
+SHRINK_ANISO = merge_defaults(SHRINK_ANISO_DEFAULT, CONFIG.get("shrink_aniso"))
 
 TREE_CFG = CONFIG["tree_shape"]
 TRUNK_W = float(TREE_CFG["trunk_w"])
@@ -566,6 +572,133 @@ def sa_optimize_improved(
 
 
 @njit(cache=True)
+def hill_refine(
+    seed_xs: np.ndarray,
+    seed_ys: np.ndarray,
+    seed_degs: np.ndarray,
+    a: float,
+    b: float,
+    shear_x: float,
+    shear_y: float,
+    ncols: int,
+    nrows: int,
+    append_x: bool,
+    append_y: bool,
+    position_delta: float,
+    angle_delta: float,
+    angle_delta2: float,
+    delta_t: float,
+    shear_delta: float,
+    n_steps: int,
+    step_scale: float,
+    random_seed: int,
+) -> tuple[float, np.ndarray, np.ndarray, np.ndarray, float, float, float, float]:
+    """
+    Greedy hill-climb refinement (T=0).
+    """
+    if n_steps <= 0 or step_scale <= 0.0:
+        all_vertices = create_grid_vertices_extended(
+            seed_xs, seed_ys, seed_degs, a, b, shear_x, shear_y, ncols, nrows, append_x, append_y
+        )
+        score = calculate_score_numba(all_vertices)
+        return score, seed_xs, seed_ys, seed_degs, a, b, shear_x, shear_y
+
+    np.random.seed(random_seed)
+    n_seeds = len(seed_xs)
+    n_move_types = n_seeds + 2
+
+    all_vertices = create_grid_vertices_extended(
+        seed_xs, seed_ys, seed_degs, a, b, shear_x, shear_y, ncols, nrows, append_x, append_y
+    )
+    if has_any_overlap(all_vertices):
+        score = calculate_score_numba(all_vertices)
+        return score, seed_xs, seed_ys, seed_degs, a, b, shear_x, shear_y
+
+    current_score = calculate_score_numba(all_vertices)
+
+    old_x, old_y, old_deg = 0.0, 0.0, 0.0
+    old_a, old_b = 0.0, 0.0
+    old_shear_x, old_shear_y = 0.0, 0.0
+    old_degs_array = seed_degs.copy()
+
+    for _ in range(n_steps):
+        move_type = np.random.randint(0, n_move_types)
+
+        if move_type < n_seeds:
+            i = move_type
+            old_x, old_y, old_deg = seed_xs[i], seed_ys[i], seed_degs[i]
+            dx = (np.random.random() * 2.0 - 1.0) * position_delta * step_scale
+            dy = (np.random.random() * 2.0 - 1.0) * position_delta * step_scale
+            ddeg = (np.random.random() * 2.0 - 1.0) * angle_delta * step_scale
+            seed_xs[i] += dx
+            seed_ys[i] += dy
+            seed_degs[i] = (seed_degs[i] + ddeg) % 360.0
+
+        elif move_type == n_seeds:
+            old_a, old_b = a, b
+            old_shear_x, old_shear_y = shear_x, shear_y
+            da = (np.random.random() * 2.0 - 1.0) * delta_t * step_scale
+            db = (np.random.random() * 2.0 - 1.0) * delta_t * step_scale
+            dsx = (np.random.random() * 2.0 - 1.0) * shear_delta * step_scale
+            dsy = (np.random.random() * 2.0 - 1.0) * shear_delta * step_scale
+            a += a * da
+            b += b * db
+            shear_x += b * dsx
+            shear_y += a * dsy
+
+        else:
+            old_degs_array[:] = seed_degs[:]
+            ddeg = (np.random.random() * 2.0 - 1.0) * angle_delta2 * step_scale
+            for k in range(n_seeds):
+                seed_degs[k] = (seed_degs[k] + ddeg) % 360.0
+
+        new_vertices = create_grid_vertices_extended(
+            seed_xs,
+            seed_ys,
+            seed_degs,
+            a,
+            b,
+            shear_x,
+            shear_y,
+            ncols,
+            nrows,
+            append_x,
+            append_y,
+        )
+        if has_any_overlap(new_vertices):
+            if move_type < n_seeds:
+                seed_xs[move_type], seed_ys[move_type], seed_degs[move_type] = (
+                    old_x,
+                    old_y,
+                    old_deg,
+                )
+            elif move_type == n_seeds:
+                a, b = old_a, old_b
+                shear_x, shear_y = old_shear_x, old_shear_y
+            else:
+                seed_degs[:] = old_degs_array[:]
+            continue
+
+        new_score = calculate_score_numba(new_vertices)
+        if new_score < current_score - 1e-9:
+            current_score = new_score
+        else:
+            if move_type < n_seeds:
+                seed_xs[move_type], seed_ys[move_type], seed_degs[move_type] = (
+                    old_x,
+                    old_y,
+                    old_deg,
+                )
+            elif move_type == n_seeds:
+                a, b = old_a, old_b
+                shear_x, shear_y = old_shear_x, old_shear_y
+            else:
+                seed_degs[:] = old_degs_array[:]
+
+    return current_score, seed_xs, seed_ys, seed_degs, a, b, shear_x, shear_y
+
+
+@njit(cache=True)
 def get_final_grid_positions_extended(
     seed_xs: np.ndarray,
     seed_ys: np.ndarray,
@@ -693,6 +826,18 @@ def build_polish_params(sa_params: dict, polish_cfg: dict) -> dict | None:
     return params
 
 
+def build_hill_params(sa_params: dict, hill_cfg: dict) -> dict | None:
+    if not hill_cfg.get("enabled", False):
+        return None
+    steps = int(hill_cfg.get("steps", 0))
+    steps_ratio = float(hill_cfg.get("steps_ratio", 0.05))
+    if steps <= 0:
+        steps = max(1, int(sa_params["nsteps"] * steps_ratio))
+    decay = float(hill_cfg.get("decay", 0.1))
+    seed_offset = int(hill_cfg.get("seed_offset", 7777))
+    return {"steps": steps, "decay": decay, "seed_offset": seed_offset}
+
+
 def apply_jitter(
     seed_xs: np.ndarray,
     seed_ys: np.ndarray,
@@ -749,6 +894,7 @@ def optimize_grid_config(args: tuple) -> tuple[int, float, list[tuple[float, flo
         params,
         multi_start,
         polish_params,
+        hill_params,
         seed,
     ) = args
 
@@ -861,6 +1007,38 @@ def optimize_grid_config(args: tuple) -> tuple[int, float, list[tuple[float, flo
             best_a, best_b = a, b
             best_shear_x, best_shear_y = shear_x, shear_y
 
+    if hill_params is not None:
+        hill_steps = int(hill_params.get("steps", 0))
+        hill_decay = float(hill_params.get("decay", 0.0))
+        if hill_steps > 0 and hill_decay > 0.0:
+            hill_seed = seed + int(hill_params.get("seed_offset", 0))
+            score_h, xs_h, ys_h, degs_h, a_h, b_h, shear_x_h, shear_y_h = hill_refine(
+                best_xs.copy(),
+                best_ys.copy(),
+                best_degs.copy(),
+                best_a,
+                best_b,
+                best_shear_x,
+                best_shear_y,
+                ncols,
+                nrows,
+                append_x,
+                append_y,
+                params["position_delta"],
+                params["angle_delta"],
+                params["angle_delta2"],
+                params["delta_t"],
+                params.get("shear_delta", 0.0),
+                hill_steps,
+                hill_decay,
+                hill_seed,
+            )
+            if score_h < best_score:
+                best_score = score_h
+                best_xs, best_ys, best_degs = xs_h, ys_h, degs_h
+                best_a, best_b = a_h, b_h
+                best_shear_x, best_shear_y = shear_x_h, shear_y_h
+
     final_xs, final_ys, final_degs = get_final_grid_positions_extended(
         best_xs,
         best_ys,
@@ -960,6 +1138,44 @@ def can_scale_group(
     return not has_any_overlap(vertices)
 
 
+@njit(cache=True)
+def can_scale_group_aniso(
+    all_xs: np.ndarray,
+    all_ys: np.ndarray,
+    all_degs: np.ndarray,
+    start_idx: int,
+    n: int,
+    center_x: float,
+    center_y: float,
+    scale_x: float,
+    scale_y: float,
+) -> bool:
+    vertices = []
+    for i in range(n):
+        idx = start_idx + i
+        cx = center_x + scale_x * (all_xs[idx] - center_x)
+        cy = center_y + scale_y * (all_ys[idx] - center_y)
+        vertices.append(get_tree_vertices(cx, cy, all_degs[idx]))
+    return not has_any_overlap(vertices)
+
+
+@njit(cache=True)
+def apply_group_scale_aniso(
+    all_xs: np.ndarray,
+    all_ys: np.ndarray,
+    start_idx: int,
+    n: int,
+    center_x: float,
+    center_y: float,
+    scale_x: float,
+    scale_y: float,
+) -> None:
+    for i in range(n):
+        idx = start_idx + i
+        all_xs[idx] = center_x + scale_x * (all_xs[idx] - center_x)
+        all_ys[idx] = center_y + scale_y * (all_ys[idx] - center_y)
+
+
 def load_submission_data(
     filepath: str, tree_cfg: dict, fallback_path: str | None = None
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
@@ -1050,6 +1266,252 @@ def shrink_positions(
     return new_xs, new_ys
 
 
+def shrink_positions_aniso(
+    all_xs: np.ndarray,
+    all_ys: np.ndarray,
+    all_degs: np.ndarray,
+    shrink_cfg: dict,
+) -> tuple[np.ndarray, np.ndarray]:
+    enabled = bool(shrink_cfg.get("enabled", False))
+    if not enabled:
+        return all_xs, all_ys
+
+    min_scale_x = float(shrink_cfg.get("min_scale_x", 0.92))
+    min_scale_y = float(shrink_cfg.get("min_scale_y", 0.92))
+    iters = int(shrink_cfg.get("iters", 24))
+    n_min = int(shrink_cfg.get("n_min", 1))
+    n_max = int(shrink_cfg.get("n_max", 200))
+    center_mode = str(shrink_cfg.get("center", "bounds"))
+
+    if min_scale_x <= 0.0:
+        min_scale_x = 0.5
+    if min_scale_y <= 0.0:
+        min_scale_y = 0.5
+    if iters < 1:
+        iters = 1
+
+    new_xs = all_xs.copy()
+    new_ys = all_ys.copy()
+
+    group_start = np.zeros(201, dtype=np.int64)
+    for n in range(1, 201):
+        group_start[n] = group_start[n - 1] + (n - 1) if n > 1 else 0
+
+    for n in range(n_min, min(n_max, 200) + 1):
+        if n <= 1:
+            continue
+        start = int(group_start[n])
+        if center_mode == "mean":
+            center_x = float(new_xs[start : start + n].mean())
+            center_y = float(new_ys[start : start + n].mean())
+        else:
+            center_x, center_y = compute_center_bounds(new_xs, new_ys, all_degs, start, n)
+
+        low = min_scale_x
+        high = 1.0
+        best = 1.0
+        for _ in range(iters):
+            mid = (low + high) * 0.5
+            if can_scale_group_aniso(
+                new_xs, new_ys, all_degs, start, n, center_x, center_y, mid, 1.0
+            ):
+                best = mid
+                high = mid
+            else:
+                low = mid
+
+        if best < 1.0 - 1e-6:
+            apply_group_scale_aniso(new_xs, new_ys, start, n, center_x, center_y, best, 1.0)
+
+        if center_mode == "mean":
+            center_x = float(new_xs[start : start + n].mean())
+            center_y = float(new_ys[start : start + n].mean())
+        else:
+            center_x, center_y = compute_center_bounds(new_xs, new_ys, all_degs, start, n)
+
+        low = min_scale_y
+        high = 1.0
+        best = 1.0
+        for _ in range(iters):
+            mid = (low + high) * 0.5
+            if can_scale_group_aniso(
+                new_xs, new_ys, all_degs, start, n, center_x, center_y, 1.0, mid
+            ):
+                best = mid
+                high = mid
+            else:
+                low = mid
+
+        if best < 1.0 - 1e-6:
+            apply_group_scale_aniso(new_xs, new_ys, start, n, center_x, center_y, 1.0, best)
+
+    return new_xs, new_ys
+
+
+@njit(cache=True)
+def group_side_length_rotated(
+    all_xs: np.ndarray,
+    all_ys: np.ndarray,
+    all_degs: np.ndarray,
+    start_idx: int,
+    n: int,
+    center_x: float,
+    center_y: float,
+    angle_rad: float,
+) -> float:
+    cos_a = math.cos(angle_rad)
+    sin_a = math.sin(angle_rad)
+    angle_deg = angle_rad * 180.0 / math.pi
+
+    min_x = math.inf
+    min_y = math.inf
+    max_x = -math.inf
+    max_y = -math.inf
+
+    for i in range(n):
+        idx = start_idx + i
+        dx = all_xs[idx] - center_x
+        dy = all_ys[idx] - center_y
+        cx = center_x + dx * cos_a - dy * sin_a
+        cy = center_y + dx * sin_a + dy * cos_a
+        deg = (all_degs[idx] + angle_deg) % 360.0
+        verts = get_tree_vertices(cx, cy, deg)
+        x1, y1, x2, y2 = polygon_bounds(verts)
+        if x1 < min_x:
+            min_x = x1
+        if y1 < min_y:
+            min_y = y1
+        if x2 > max_x:
+            max_x = x2
+        if y2 > max_y:
+            max_y = y2
+
+    return max(max_x - min_x, max_y - min_y)
+
+
+@njit(cache=True)
+def find_best_rotation_angle(
+    all_xs: np.ndarray,
+    all_ys: np.ndarray,
+    all_degs: np.ndarray,
+    start_idx: int,
+    n: int,
+    center_x: float,
+    center_y: float,
+    angles_rad: np.ndarray,
+) -> tuple[float, float]:
+    best_angle = 0.0
+    best_side = math.inf
+
+    for k in range(angles_rad.shape[0]):
+        angle = angles_rad[k]
+        side = group_side_length_rotated(
+            all_xs, all_ys, all_degs, start_idx, n, center_x, center_y, angle
+        )
+        if side < best_side:
+            best_side = side
+            best_angle = angle
+
+    return best_angle, best_side
+
+
+@njit(cache=True)
+def apply_group_rotation(
+    all_xs: np.ndarray,
+    all_ys: np.ndarray,
+    all_degs: np.ndarray,
+    start_idx: int,
+    n: int,
+    center_x: float,
+    center_y: float,
+    angle_rad: float,
+) -> None:
+    cos_a = math.cos(angle_rad)
+    sin_a = math.sin(angle_rad)
+    angle_deg = angle_rad * 180.0 / math.pi
+
+    for i in range(n):
+        idx = start_idx + i
+        dx = all_xs[idx] - center_x
+        dy = all_ys[idx] - center_y
+        all_xs[idx] = center_x + dx * cos_a - dy * sin_a
+        all_ys[idx] = center_y + dx * sin_a + dy * cos_a
+        all_degs[idx] = (all_degs[idx] + angle_deg) % 360.0
+
+
+def rotate_positions(
+    all_xs: np.ndarray,
+    all_ys: np.ndarray,
+    all_degs: np.ndarray,
+    rotate_cfg: dict,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    enabled = bool(rotate_cfg.get("enabled", False))
+    if not enabled:
+        return all_xs, all_ys, all_degs
+
+    n_min = int(rotate_cfg.get("n_min", 1))
+    n_max = int(rotate_cfg.get("n_max", 200))
+    center_mode = str(rotate_cfg.get("center", "bounds"))
+    coarse_step_deg = float(rotate_cfg.get("coarse_step_deg", 5.0))
+    fine_step_deg = float(rotate_cfg.get("fine_step_deg", 0.5))
+    fine_window_deg = float(rotate_cfg.get("fine_window_deg", 4.0))
+    max_angle_deg = float(rotate_cfg.get("max_angle_deg", 90.0))
+
+    if coarse_step_deg <= 0.0:
+        coarse_step_deg = 5.0
+    if fine_step_deg < 0.0:
+        fine_step_deg = 0.0
+    if fine_window_deg < 0.0:
+        fine_window_deg = 0.0
+    if max_angle_deg <= 0.0:
+        max_angle_deg = 90.0
+    if max_angle_deg > 90.0:
+        max_angle_deg = 90.0
+
+    angles_coarse = np.deg2rad(
+        np.arange(0.0, max_angle_deg + 1e-9, coarse_step_deg, dtype=np.float64)
+    )
+
+    new_xs = all_xs.copy()
+    new_ys = all_ys.copy()
+    new_degs = all_degs.copy()
+
+    group_start = np.zeros(201, dtype=np.int64)
+    for n in range(1, 201):
+        group_start[n] = group_start[n - 1] + (n - 1) if n > 1 else 0
+
+    for n in range(n_min, min(n_max, 200) + 1):
+        if n <= 1:
+            continue
+        start = int(group_start[n])
+        if center_mode == "mean":
+            center_x = float(new_xs[start : start + n].mean())
+            center_y = float(new_ys[start : start + n].mean())
+        else:
+            center_x, center_y = compute_center_bounds(new_xs, new_ys, new_degs, start, n)
+
+        best_angle, _ = find_best_rotation_angle(
+            new_xs, new_ys, new_degs, start, n, center_x, center_y, angles_coarse
+        )
+
+        if fine_step_deg > 0.0 and fine_window_deg > 0.0:
+            best_deg = best_angle * 180.0 / math.pi
+            fine_start = max(0.0, best_deg - fine_window_deg)
+            fine_end = min(max_angle_deg, best_deg + fine_window_deg)
+            if fine_end - fine_start >= fine_step_deg:
+                angles_fine = np.deg2rad(
+                    np.arange(fine_start, fine_end + 1e-9, fine_step_deg, dtype=np.float64)
+                )
+                best_angle, _ = find_best_rotation_angle(
+                    new_xs, new_ys, new_degs, start, n, center_x, center_y, angles_fine
+                )
+
+        if abs(best_angle) > 1e-12:
+            apply_group_rotation(new_xs, new_ys, new_degs, start, n, center_x, center_y, best_angle)
+
+    return new_xs, new_ys, new_degs
+
+
 def calculate_total_score(all_xs: np.ndarray, all_ys: np.ndarray, all_degs: np.ndarray) -> float:
     """
     全レベルのトータルスコアを計算
@@ -1124,6 +1586,7 @@ if __name__ == "__main__":
     sa_params = CONFIG["sa_params"]
     multi_start = MULTI_START
     polish_params = build_polish_params(sa_params, POLISH)
+    hill_params = build_hill_params(sa_params, HILL)
 
     n_seeds = len(seeds)
     for i, (ncols, nrows, append_x, append_y) in enumerate(grid_configs):
@@ -1145,6 +1608,7 @@ if __name__ == "__main__":
                 sa_params,
                 multi_start,
                 polish_params,
+                hill_params,
                 seed,
             )
         )
@@ -1206,6 +1670,20 @@ if __name__ == "__main__":
     if shrink_cfg.get("enabled", False):
         print("Applying shrink optimization...")
         final_xs, final_ys = shrink_positions(final_xs, final_ys, final_degs, shrink_cfg)
+
+    shrink_aniso_cfg = SHRINK_ANISO
+    if shrink_aniso_cfg.get("enabled", False):
+        print("Applying anisotropic shrink optimization...")
+        final_xs, final_ys = shrink_positions_aniso(
+            final_xs, final_ys, final_degs, shrink_aniso_cfg
+        )
+
+    rotate_cfg = ROTATE
+    if rotate_cfg.get("enabled", False):
+        print("Applying rotation optimization...")
+        final_xs, final_ys, final_degs = rotate_positions(
+            final_xs, final_ys, final_degs, rotate_cfg
+        )
 
     final_score = calculate_total_score(final_xs, final_ys, final_degs)
     print("=" * 80)
