@@ -1,5 +1,5 @@
 paths:
-  baseline: "data/raw/sample_submission_4.csv"
+  baseline: "data/raw/sample_submission_5.csv"
   output: "submissions/submission.csv"
   overlap_script: ""
 

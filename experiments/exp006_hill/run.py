@@ -483,81 +483,148 @@ def sa_optimize_improved(
                 else:
                     seed_degs[:] = old_degs_array[:]
 
-    # --- Phase 2: Greedy (Refinement) ---
-    print("[N =", log_tag, "] Start Greedy Phase (T=0)...")
+    # Phase 2: Kick & Descent (Iterated Greedy)
+    # SAの結果(best_*)を「グローバルベスト」として保持し、
+    # そこから「少しずらして(Kick) -> 貪欲法(Descent)」を何度も試す
 
-    # Reset to best SA state
-    seed_xs[:] = best_xs[:]
-    seed_ys[:] = best_ys[:]
-    seed_degs[:] = best_degs[:]
-    a, b = best_a, best_b
-    current_score = best_score
+    global_best_score = best_score
+    global_best_xs = best_xs.copy()
+    global_best_ys = best_ys.copy()
+    global_best_degs = best_degs.copy()
+    global_best_a, global_best_b = best_a, best_b
 
-    n_finish_steps = nsteps // 20
-    decay = 0.1  # Smaller steps for refinement
+    # 5回リトライする (Iterated Local Search)
+    n_restarts = 5
+    # 1回あたりの探索ステップ数 (SA全体の5%程度)
+    steps_per_restart = nsteps // 20
+    if steps_per_restart < 500:
+        steps_per_restart = 500
 
-    for _ in range(n_finish_steps):
-        move_type = np.random.randint(0, n_move_types)
+    # Descent用の小さなステップ幅係数
+    descent_decay = 0.1
+    cur_pos_delta = position_delta * descent_decay
+    cur_ang_delta = angle_delta * descent_decay
+    cur_ang_delta2 = angle_delta2 * descent_decay
+    cur_delta_t = delta_t * descent_decay
 
-        if move_type < n_seeds:
-            i = move_type
-            old_x, old_y, old_deg = seed_xs[i], seed_ys[i], seed_degs[i]
-            dx = (np.random.random() * 2.0 - 1.0) * position_delta * decay
-            dy = (np.random.random() * 2.0 - 1.0) * position_delta * decay
-            ddeg = (np.random.random() * 2.0 - 1.0) * angle_delta * decay
-            seed_xs[i] += dx
-            seed_ys[i] += dy
-            seed_degs[i] = (seed_degs[i] + ddeg) % 360.0
-        elif move_type == n_seeds:
-            old_a, old_b = a, b
-            da = (np.random.random() * 2.0 - 1.0) * delta_t * decay
-            db = (np.random.random() * 2.0 - 1.0) * delta_t * decay
-            a += a * da
-            b += b * db
-        else:
-            old_degs_array[:] = seed_degs[:]
-            ddeg = (np.random.random() * 2.0 - 1.0) * angle_delta2 * decay
-            for k in range(n_seeds):
-                seed_degs[k] = (seed_degs[k] + ddeg) % 360.0
+    for _ in range(n_restarts):
+        # 1. Reset to Global Best
+        seed_xs[:] = global_best_xs[:]
+        seed_ys[:] = global_best_ys[:]
+        seed_degs[:] = global_best_degs[:]
+        a, b = global_best_a, global_best_b
 
-        new_vertices = create_grid_vertices_extended(
+        # 2. Kick: グローバルベストからランダムに少しずらす
+        # (ステップ幅の半分程度で揺らす)
+        kick_strength = 0.5
+
+        # 一時退避
+        old_xs_kick = seed_xs.copy()
+        old_ys_kick = seed_ys.copy()
+        old_degs_kick = seed_degs.copy()
+        old_a_kick, old_b_kick = a, b
+
+        # 全パラメータにノイズを乗せる
+        for i in range(n_seeds):
+            seed_xs[i] += (np.random.random() * 2.0 - 1.0) * position_delta * kick_strength
+            seed_ys[i] += (np.random.random() * 2.0 - 1.0) * position_delta * kick_strength
+            seed_degs[i] = (
+                seed_degs[i] + (np.random.random() * 2.0 - 1.0) * angle_delta * kick_strength
+            ) % 360.0
+
+        # 衝突チェック
+        temp_verts = create_grid_vertices_extended(
             seed_xs, seed_ys, seed_degs, a, b, ncols, nrows, append_x, append_y
         )
-        if has_any_overlap(new_vertices):
-            if move_type < n_seeds:
-                seed_xs[move_type], seed_ys[move_type], seed_degs[move_type] = (
-                    old_x,
-                    old_y,
-                    old_deg,
-                )
-            elif move_type == n_seeds:
-                a, b = old_a, old_b
-            else:
-                seed_degs[:] = old_degs_array[:]
-            continue
+        if has_any_overlap(temp_verts):
+            seed_xs[:] = old_xs_kick[:]
+            seed_ys[:] = old_ys_kick[:]
+            seed_degs[:] = old_degs_kick[:]
+            a, b = old_a_kick, old_b_kick
 
-        new_score = calculate_score_numba(new_vertices)
-        # Strict improvement check (Greedy)
-        if new_score < current_score - 1e-9:
-            current_score = new_score
-            best_score = new_score
-            best_xs[:] = seed_xs[:]
-            best_ys[:] = seed_ys[:]
-            best_degs[:] = seed_degs[:]
-            best_a, best_b = a, b
-        else:
-            if move_type < n_seeds:
-                seed_xs[move_type], seed_ys[move_type], seed_degs[move_type] = (
-                    old_x,
-                    old_y,
-                    old_deg,
-                )
-            elif move_type == n_seeds:
-                a, b = old_a, old_b
-            else:
-                seed_degs[:] = old_degs_array[:]
+        current_score = calculate_score_numba(
+            create_grid_vertices_extended(
+                seed_xs, seed_ys, seed_degs, a, b, ncols, nrows, append_x, append_y
+            )
+        )
 
-    return best_score, best_xs, best_ys, best_degs, best_a, best_b
+        # 3. 貪欲法ループ
+        for _ in range(steps_per_restart):
+            move_type = np.random.randint(0, n_move_types)
+
+            if move_type < n_seeds:
+                i = move_type
+                old_x, old_y, old_deg = seed_xs[i], seed_ys[i], seed_degs[i]
+                dx = (np.random.random() * 2.0 - 1.0) * cur_pos_delta
+                dy = (np.random.random() * 2.0 - 1.0) * cur_pos_delta
+                ddeg = (np.random.random() * 2.0 - 1.0) * cur_ang_delta
+                seed_xs[i] += dx
+                seed_ys[i] += dy
+                seed_degs[i] = (seed_degs[i] + ddeg) % 360.0
+            elif move_type == n_seeds:
+                old_a, old_b = a, b
+                da = (np.random.random() * 2.0 - 1.0) * cur_delta_t
+                db = (np.random.random() * 2.0 - 1.0) * cur_delta_t
+                a += a * da
+                b += b * db
+            else:
+                old_degs_array[:] = seed_degs[:]
+                ddeg = (np.random.random() * 2.0 - 1.0) * cur_ang_delta2
+                for k in range(n_seeds):
+                    seed_degs[k] = (seed_degs[k] + ddeg) % 360.0
+
+            # --- Constraint Check ---
+            new_vertices = create_grid_vertices_extended(
+                seed_xs, seed_ys, seed_degs, a, b, ncols, nrows, append_x, append_y
+            )
+            if has_any_overlap(new_vertices):
+                # Revert
+                if move_type < n_seeds:
+                    seed_xs[move_type], seed_ys[move_type], seed_degs[move_type] = (
+                        old_x,
+                        old_y,
+                        old_deg,
+                    )
+                elif move_type == n_seeds:
+                    a, b = old_a, old_b
+                else:
+                    seed_degs[:] = old_degs_array[:]
+                continue
+
+            # --- Greedy Acceptance (T=0) ---
+            new_score = calculate_score_numba(new_vertices)
+
+            # 改善したら即採用
+            if new_score < current_score - 1e-9:
+                current_score = new_score
+                # もしグローバルベストを超えたら更新
+                if new_score < global_best_score:
+                    global_best_score = new_score
+                    global_best_xs[:] = seed_xs[:]
+                    global_best_ys[:] = seed_ys[:]
+                    global_best_degs[:] = seed_degs[:]
+                    global_best_a, global_best_b = a, b
+            else:
+                # Revert
+                if move_type < n_seeds:
+                    seed_xs[move_type], seed_ys[move_type], seed_degs[move_type] = (
+                        old_x,
+                        old_y,
+                        old_deg,
+                    )
+                elif move_type == n_seeds:
+                    a, b = old_a, old_b
+                else:
+                    seed_degs[:] = old_degs_array[:]
+
+    return (
+        global_best_score,
+        global_best_xs,
+        global_best_ys,
+        global_best_degs,
+        global_best_a,
+        global_best_b,
+    )
 
 
 @njit(cache=True)
