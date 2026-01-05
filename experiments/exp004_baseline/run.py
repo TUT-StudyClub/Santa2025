@@ -47,8 +47,10 @@ MULTI_START_DEFAULT = {
     "jitter_shear": 0.0,
 }
 POLISH_DEFAULT = {"enabled": False}
+HILL_DEFAULT = {"enabled": False}
 MULTI_START = merge_defaults(MULTI_START_DEFAULT, CONFIG.get("multi_start"))
 POLISH = merge_defaults(POLISH_DEFAULT, CONFIG.get("polish"))
+HILL = merge_defaults(HILL_DEFAULT, CONFIG.get("hill"))
 
 TREE_CFG = CONFIG["tree_shape"]
 TRUNK_W = float(TREE_CFG["trunk_w"])
@@ -566,6 +568,133 @@ def sa_optimize_improved(
 
 
 @njit(cache=True)
+def hill_refine(
+    seed_xs: np.ndarray,
+    seed_ys: np.ndarray,
+    seed_degs: np.ndarray,
+    a: float,
+    b: float,
+    shear_x: float,
+    shear_y: float,
+    ncols: int,
+    nrows: int,
+    append_x: bool,
+    append_y: bool,
+    position_delta: float,
+    angle_delta: float,
+    angle_delta2: float,
+    delta_t: float,
+    shear_delta: float,
+    n_steps: int,
+    step_scale: float,
+    random_seed: int,
+) -> tuple[float, np.ndarray, np.ndarray, np.ndarray, float, float, float, float]:
+    """
+    Greedy hill-climb refinement (T=0).
+    """
+    if n_steps <= 0 or step_scale <= 0.0:
+        all_vertices = create_grid_vertices_extended(
+            seed_xs, seed_ys, seed_degs, a, b, shear_x, shear_y, ncols, nrows, append_x, append_y
+        )
+        score = calculate_score_numba(all_vertices)
+        return score, seed_xs, seed_ys, seed_degs, a, b, shear_x, shear_y
+
+    np.random.seed(random_seed)
+    n_seeds = len(seed_xs)
+    n_move_types = n_seeds + 2
+
+    all_vertices = create_grid_vertices_extended(
+        seed_xs, seed_ys, seed_degs, a, b, shear_x, shear_y, ncols, nrows, append_x, append_y
+    )
+    if has_any_overlap(all_vertices):
+        score = calculate_score_numba(all_vertices)
+        return score, seed_xs, seed_ys, seed_degs, a, b, shear_x, shear_y
+
+    current_score = calculate_score_numba(all_vertices)
+
+    old_x, old_y, old_deg = 0.0, 0.0, 0.0
+    old_a, old_b = 0.0, 0.0
+    old_shear_x, old_shear_y = 0.0, 0.0
+    old_degs_array = seed_degs.copy()
+
+    for _ in range(n_steps):
+        move_type = np.random.randint(0, n_move_types)
+
+        if move_type < n_seeds:
+            i = move_type
+            old_x, old_y, old_deg = seed_xs[i], seed_ys[i], seed_degs[i]
+            dx = (np.random.random() * 2.0 - 1.0) * position_delta * step_scale
+            dy = (np.random.random() * 2.0 - 1.0) * position_delta * step_scale
+            ddeg = (np.random.random() * 2.0 - 1.0) * angle_delta * step_scale
+            seed_xs[i] += dx
+            seed_ys[i] += dy
+            seed_degs[i] = (seed_degs[i] + ddeg) % 360.0
+
+        elif move_type == n_seeds:
+            old_a, old_b = a, b
+            old_shear_x, old_shear_y = shear_x, shear_y
+            da = (np.random.random() * 2.0 - 1.0) * delta_t * step_scale
+            db = (np.random.random() * 2.0 - 1.0) * delta_t * step_scale
+            dsx = (np.random.random() * 2.0 - 1.0) * shear_delta * step_scale
+            dsy = (np.random.random() * 2.0 - 1.0) * shear_delta * step_scale
+            a += a * da
+            b += b * db
+            shear_x += b * dsx
+            shear_y += a * dsy
+
+        else:
+            old_degs_array[:] = seed_degs[:]
+            ddeg = (np.random.random() * 2.0 - 1.0) * angle_delta2 * step_scale
+            for k in range(n_seeds):
+                seed_degs[k] = (seed_degs[k] + ddeg) % 360.0
+
+        new_vertices = create_grid_vertices_extended(
+            seed_xs,
+            seed_ys,
+            seed_degs,
+            a,
+            b,
+            shear_x,
+            shear_y,
+            ncols,
+            nrows,
+            append_x,
+            append_y,
+        )
+        if has_any_overlap(new_vertices):
+            if move_type < n_seeds:
+                seed_xs[move_type], seed_ys[move_type], seed_degs[move_type] = (
+                    old_x,
+                    old_y,
+                    old_deg,
+                )
+            elif move_type == n_seeds:
+                a, b = old_a, old_b
+                shear_x, shear_y = old_shear_x, old_shear_y
+            else:
+                seed_degs[:] = old_degs_array[:]
+            continue
+
+        new_score = calculate_score_numba(new_vertices)
+        if new_score < current_score - 1e-9:
+            current_score = new_score
+        else:
+            if move_type < n_seeds:
+                seed_xs[move_type], seed_ys[move_type], seed_degs[move_type] = (
+                    old_x,
+                    old_y,
+                    old_deg,
+                )
+            elif move_type == n_seeds:
+                a, b = old_a, old_b
+                shear_x, shear_y = old_shear_x, old_shear_y
+            else:
+                seed_degs[:] = old_degs_array[:]
+
+    return current_score, seed_xs, seed_ys, seed_degs, a, b, shear_x, shear_y
+
+
+@njit(cache=True)
 def get_final_grid_positions_extended(
     seed_xs: np.ndarray,
     seed_ys: np.ndarray,
@@ -693,6 +822,18 @@ def build_polish_params(sa_params: dict, polish_cfg: dict) -> dict | None:
     return params
 
 
+def build_hill_params(sa_params: dict, hill_cfg: dict) -> dict | None:
+    if not hill_cfg.get("enabled", False):
+        return None
+    steps = int(hill_cfg.get("steps", 0))
+    steps_ratio = float(hill_cfg.get("steps_ratio", 0.05))
+    if steps <= 0:
+        steps = max(1, int(sa_params["nsteps"] * steps_ratio))
+    decay = float(hill_cfg.get("decay", 0.1))
+    seed_offset = int(hill_cfg.get("seed_offset", 7777))
+    return {"steps": steps, "decay": decay, "seed_offset": seed_offset}
+
+
 def apply_jitter(
     seed_xs: np.ndarray,
     seed_ys: np.ndarray,
@@ -749,6 +890,7 @@ def optimize_grid_config(args: tuple) -> tuple[int, float, list[tuple[float, flo
         params,
         multi_start,
         polish_params,
+        hill_params,
         seed,
     ) = args
 
@@ -860,6 +1002,38 @@ def optimize_grid_config(args: tuple) -> tuple[int, float, list[tuple[float, flo
             best_xs, best_ys, best_degs = xs, ys, degs
             best_a, best_b = a, b
             best_shear_x, best_shear_y = shear_x, shear_y
+
+    if hill_params is not None:
+        hill_steps = int(hill_params.get("steps", 0))
+        hill_decay = float(hill_params.get("decay", 0.0))
+        if hill_steps > 0 and hill_decay > 0.0:
+            hill_seed = seed + int(hill_params.get("seed_offset", 0))
+            score_h, xs_h, ys_h, degs_h, a_h, b_h, shear_x_h, shear_y_h = hill_refine(
+                best_xs.copy(),
+                best_ys.copy(),
+                best_degs.copy(),
+                best_a,
+                best_b,
+                best_shear_x,
+                best_shear_y,
+                ncols,
+                nrows,
+                append_x,
+                append_y,
+                params["position_delta"],
+                params["angle_delta"],
+                params["angle_delta2"],
+                params["delta_t"],
+                params.get("shear_delta", 0.0),
+                hill_steps,
+                hill_decay,
+                hill_seed,
+            )
+            if score_h < best_score:
+                best_score = score_h
+                best_xs, best_ys, best_degs = xs_h, ys_h, degs_h
+                best_a, best_b = a_h, b_h
+                best_shear_x, best_shear_y = shear_x_h, shear_y_h
 
     final_xs, final_ys, final_degs = get_final_grid_positions_extended(
         best_xs,
@@ -1124,6 +1298,7 @@ if __name__ == "__main__":
     sa_params = CONFIG["sa_params"]
     multi_start = MULTI_START
     polish_params = build_polish_params(sa_params, POLISH)
+    hill_params = build_hill_params(sa_params, HILL)
 
     n_seeds = len(seeds)
     for i, (ncols, nrows, append_x, append_y) in enumerate(grid_configs):
@@ -1145,6 +1320,7 @@ if __name__ == "__main__":
                 sa_params,
                 multi_start,
                 polish_params,
+                hill_params,
                 seed,
             )
         )
