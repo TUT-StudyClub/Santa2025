@@ -8,7 +8,7 @@ import pandas as pd
 # 重なりエラーが出ている現在のファイル
 target_csv = "submissions/submission.csv"
 # 安全なベースラインファイル (サンプル投稿)
-baseline_csv = "data/raw/sample_submission.csv"
+baseline_csv = "submissions/baseline.csv"
 # 出力ファイル名
 output_csv = "submissions/submission_fix.csv"
 
@@ -30,7 +30,7 @@ def main():
     # 強制的に修正するグループ番号のリスト
     # エラーが出続けるグループ番号をここに追加してください
     # ---------------------------------------------------------
-    groups_to_force_revert = [154]
+    groups_to_force_revert = [3]
 
     print(f"Force reverting groups: {groups_to_force_revert}")
 
