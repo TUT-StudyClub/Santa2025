@@ -4,12 +4,13 @@
 推奨: 新しい行を上に追加。
 
 ## 実験結果まとめ（日本語）
-- 現時点の最良スコア: 70.892099（exp004_baseline exp=007）
-- スコア推移: 178.9197 → 159.3497 → 117.2827 → 109.8679 → 70.935929406660 → 82.898630 → 70.924429 → 70.909422580984 → 70.892099
+- 現時点の最良スコア: 70.836885（exp007_intensive exp=000）
+- スコア推移: 178.9197 → 159.3497 → 117.2827 → 109.8679 → 70.935929406660 → 82.898630 → 70.924429 → 70.909422580984 → 70.892099 → 70.836885
 - 目標スコア: 69
 
 | Date | Author | Branch/PR | Change | Seed | CV | LB | Command/Config | Note |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| 2026-01-08 | yuhei | - | exp007_intensive 強化SA + 回転後shrink | 42 | - | score=70.836885 | `uv run ./experiments/exp007_intensive/run.py exp=000` | baseline.csv, 強化パラメータ |
 | 2026-01-05 | yuhei | - | exp004_baseline anisotropic shrink + rotate | 42 | - | score=70.892099 | `uv run ./experiments/exp004_baseline/run.py exp=007` | baseline.csv, shrink_aniso, rotate |
 | 2026-01-05 | haruto | exp/kotou/20260105 | exp006_hill 貪欲法の改良 | 42 | - | score=70.892100493950 | `python ./experiments/exp006_hill/run.py exp=001` | - |
 | 2026-01-04 | haruto | exp/kotou/20260104 | exp006_hill 貪欲法の実装 | 42 | - | score=70.909422580984 | `uv run ./experiments/exp006_hill/run.py exp=001` | - |

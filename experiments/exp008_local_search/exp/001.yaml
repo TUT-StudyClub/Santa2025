@@ -1,0 +1,36 @@
+paths:
+  baseline: "submissions/baseline.csv"
+  output: "submissions/submission.csv"
+
+tree_shape:
+  trunk_w: 0.15
+  trunk_h: 0.2
+  base_w: 0.7
+  mid_w: 0.4
+  top_w: 0.25
+  tip_y: 0.8
+  tier_1_y: 0.5
+  tier_2_y: 0.25
+  base_y: 0.0
+  trunk_bottom_y: -0.2
+
+local_search:
+  # 各グループあたりの反復回数（増加）
+  n_iters: 500000
+  # 位置の探索幅（大幅に増加）
+  pos_delta: 0.1
+  # 角度の探索幅（度）（増加）
+  ang_delta: 15.0
+  # SAを使用するか
+  use_sa: true
+  # SA温度パラメータ（高く設定）
+  T_max: 0.1
+  T_min: 0.0001
+  # 最適化するグループの範囲
+  n_min: 2
+  n_max: 200
+  # 乱数シード
+  seed_base: 42
+  # デバッグ出力
+  debug: true
+
