@@ -60,14 +60,26 @@ def get_tree_vertices(cx: float, cy: float, angle_deg: float) -> np.ndarray:
     sin_a = math.sin(angle_rad)
     vertices = np.empty((15, 2), dtype=np.float64)
 
-    pts = np.array([
-        [0.0, TIP_Y], [TOP_W / 2.0, TIER_1_Y], [TOP_W / 4.0, TIER_1_Y],
-        [MID_W / 2.0, TIER_2_Y], [MID_W / 4.0, TIER_2_Y], [BASE_W / 2.0, BASE_Y],
-        [TRUNK_W / 2.0, BASE_Y], [TRUNK_W / 2.0, TRUNK_BOTTOM_Y],
-        [-TRUNK_W / 2.0, TRUNK_BOTTOM_Y], [-TRUNK_W / 2.0, BASE_Y],
-        [-BASE_W / 2.0, BASE_Y], [-MID_W / 4.0, TIER_2_Y], [-MID_W / 2.0, TIER_2_Y],
-        [-TOP_W / 4.0, TIER_1_Y], [-TOP_W / 2.0, TIER_1_Y],
-    ], dtype=np.float64)
+    pts = np.array(
+        [
+            [0.0, TIP_Y],
+            [TOP_W / 2.0, TIER_1_Y],
+            [TOP_W / 4.0, TIER_1_Y],
+            [MID_W / 2.0, TIER_2_Y],
+            [MID_W / 4.0, TIER_2_Y],
+            [BASE_W / 2.0, BASE_Y],
+            [TRUNK_W / 2.0, BASE_Y],
+            [TRUNK_W / 2.0, TRUNK_BOTTOM_Y],
+            [-TRUNK_W / 2.0, TRUNK_BOTTOM_Y],
+            [-TRUNK_W / 2.0, BASE_Y],
+            [-BASE_W / 2.0, BASE_Y],
+            [-MID_W / 4.0, TIER_2_Y],
+            [-MID_W / 2.0, TIER_2_Y],
+            [-TOP_W / 4.0, TIER_1_Y],
+            [-TOP_W / 2.0, TIER_1_Y],
+        ],
+        dtype=np.float64,
+    )
 
     for i in range(15):
         rx, ry = rotate_point(pts[i, 0], pts[i, 1], cos_a, sin_a)
@@ -84,10 +96,14 @@ def polygon_bounds(vertices: np.ndarray) -> tuple[float, float, float, float]:
     max_y = vertices[0, 1]
     for i in range(1, vertices.shape[0]):
         x, y = vertices[i, 0], vertices[i, 1]
-        if x < min_x: min_x = x
-        if x > max_x: max_x = x
-        if y < min_y: min_y = y
-        if y > max_y: max_y = y
+        if x < min_x:
+            min_x = x
+        if x > max_x:
+            max_x = x
+        if y < min_y:
+            min_y = y
+        if y > max_y:
+            max_y = y
     return min_x, min_y, max_x, max_y
 
 
@@ -107,8 +123,7 @@ def point_in_polygon(px: float, py: float, vertices: np.ndarray) -> bool:
 
 @njit(cache=True)
 def segments_intersect(
-    p1x: float, p1y: float, p2x: float, p2y: float,
-    p3x: float, p3y: float, p4x: float, p4y: float
+    p1x: float, p1y: float, p2x: float, p2y: float, p3x: float, p3y: float, p4x: float, p4y: float
 ) -> bool:
     d1x, d1y = p2x - p1x, p2y - p1y
     d2x, d2y = p4x - p3x, p4y - p3y
@@ -140,8 +155,16 @@ def polygons_overlap(verts1: np.ndarray, verts2: np.ndarray) -> bool:
         j = (i + 1) % n1
         for k in range(n2):
             m = (k + 1) % n2
-            if segments_intersect(verts1[i, 0], verts1[i, 1], verts1[j, 0], verts1[j, 1],
-                                  verts2[k, 0], verts2[k, 1], verts2[m, 0], verts2[m, 1]):
+            if segments_intersect(
+                verts1[i, 0],
+                verts1[i, 1],
+                verts1[j, 0],
+                verts1[j, 1],
+                verts2[k, 0],
+                verts2[k, 1],
+                verts2[m, 0],
+                verts2[m, 1],
+            ):
                 return True
     return False
 
@@ -162,10 +185,14 @@ def compute_bounding_box(all_vertices: list[np.ndarray]) -> tuple[float, float, 
     max_x, max_y = -math.inf, -math.inf
     for verts in all_vertices:
         x1, y1, x2, y2 = polygon_bounds(verts)
-        if x1 < min_x: min_x = x1
-        if y1 < min_y: min_y = y1
-        if x2 > max_x: max_x = x2
-        if y2 > max_y: max_y = y2
+        if x1 < min_x:
+            min_x = x1
+        if y1 < min_y:
+            min_y = y1
+        if x2 > max_x:
+            max_x = x2
+        if y2 > max_y:
+            max_y = y2
     return min_x, min_y, max_x, max_y
 
 
@@ -202,14 +229,14 @@ def optimize_small_group_sa(
     全ての木の位置と角度を同時に最適化
     """
     np.random.seed(random_seed)
-    
+
     xs = init_xs.copy()
     ys = init_ys.copy()
     degs = init_degs.copy()
-    
+
     # 初期状態の頂点とスコア
     all_vertices = [get_tree_vertices(xs[i], ys[i], degs[i]) for i in range(n)]
-    
+
     # 初期状態で重なりがある場合は広げる
     spread = 1.0
     while has_any_overlap(all_vertices):
@@ -220,40 +247,41 @@ def optimize_small_group_sa(
         all_vertices = [get_tree_vertices(xs[i], ys[i], degs[i]) for i in range(n)]
         if spread > 10.0:
             break
-    
+
     current_score = calculate_score(all_vertices)
     best_score = current_score
     best_xs = xs.copy()
     best_ys = ys.copy()
     best_degs = degs.copy()
-    
+
     T_factor = -math.log(T_max / T_min)
-    
+
     for step in range(n_iters):
         T = T_max * math.exp(T_factor * step / n_iters)
         progress = step / n_iters
         decay = 1.0 - 0.8 * progress
         cur_pos_delta = pos_delta * decay
         cur_ang_delta = ang_delta * decay
-        
+
         # ランダムに木を選択
         tree_idx = np.random.randint(0, n)
         move_type = np.random.randint(0, 4)  # 0=x, 1=y, 2=deg, 3=all
-        
+
         old_x = xs[tree_idx]
         old_y = ys[tree_idx]
         old_deg = degs[tree_idx]
-        
+
         if move_type == 0 or move_type == 3:
             xs[tree_idx] += (np.random.random() * 2.0 - 1.0) * cur_pos_delta
         if move_type == 1 or move_type == 3:
             ys[tree_idx] += (np.random.random() * 2.0 - 1.0) * cur_pos_delta
         if move_type == 2 or move_type == 3:
-            degs[tree_idx] = (degs[tree_idx] + (np.random.random() * 2.0 - 1.0) * cur_ang_delta) % 360.0
-        
+            delta_ang = (np.random.random() * 2.0 - 1.0) * cur_ang_delta
+            degs[tree_idx] = (degs[tree_idx] + delta_ang) % 360.0
+
         # 新しい頂点を計算
         new_verts = get_tree_vertices(xs[tree_idx], ys[tree_idx], degs[tree_idx])
-        
+
         # 衝突チェック（変更した木だけ）
         overlap = False
         for j in range(n):
@@ -261,24 +289,24 @@ def optimize_small_group_sa(
                 if polygons_overlap(new_verts, all_vertices[j]):
                     overlap = True
                     break
-        
+
         if overlap:
             xs[tree_idx] = old_x
             ys[tree_idx] = old_y
             degs[tree_idx] = old_deg
             continue
-        
+
         # スコア計算
         all_vertices[tree_idx] = new_verts
         new_score = calculate_score(all_vertices)
         delta = new_score - current_score
-        
+
         accept = False
         if delta < 0:
             accept = True
         elif T > 1e-10 and np.random.random() < math.exp(-delta / T):
             accept = True
-        
+
         if accept:
             current_score = new_score
             if new_score < best_score:
@@ -291,7 +319,7 @@ def optimize_small_group_sa(
             ys[tree_idx] = old_y
             degs[tree_idx] = old_deg
             all_vertices[tree_idx] = get_tree_vertices(old_x, old_y, old_deg)
-    
+
     return best_xs, best_ys, best_degs, best_score
 
 
@@ -304,14 +332,14 @@ def generate_initial_positions(n: int, pattern: int) -> tuple[np.ndarray, np.nda
     xs = np.zeros(n, dtype=np.float64)
     ys = np.zeros(n, dtype=np.float64)
     degs = np.zeros(n, dtype=np.float64)
-    
+
     if pattern == 0:  # グリッド
         cols = int(math.ceil(math.sqrt(n)))
         for i in range(n):
             xs[i] = (i % cols) * 0.8
             ys[i] = (i // cols) * 0.8
             degs[i] = 0.0
-    
+
     elif pattern == 1:  # 円形配置
         for i in range(n):
             angle = 2.0 * math.pi * i / n
@@ -319,20 +347,20 @@ def generate_initial_positions(n: int, pattern: int) -> tuple[np.ndarray, np.nda
             xs[i] = radius * math.cos(angle)
             ys[i] = radius * math.sin(angle)
             degs[i] = angle * 180.0 / math.pi
-    
+
     elif pattern == 2:  # 交互角度のグリッド
         cols = int(math.ceil(math.sqrt(n)))
         for i in range(n):
             xs[i] = (i % cols) * 0.75
             ys[i] = (i // cols) * 0.7
             degs[i] = 180.0 if (i + i // cols) % 2 == 0 else 0.0
-    
+
     else:  # 対角配置
         for i in range(n):
             xs[i] = i * 0.5
             ys[i] = (i % 2) * 0.4
             degs[i] = 90.0 * (i % 4)
-    
+
     return xs, ys, degs
 
 
@@ -354,23 +382,22 @@ def optimize_group_multistart(
     best_xs = np.zeros(n, dtype=np.float64)
     best_ys = np.zeros(n, dtype=np.float64)
     best_degs = np.zeros(n, dtype=np.float64)
-    
+
     for restart in range(n_restarts):
         pattern = restart % 4
         init_xs, init_ys, init_degs = generate_initial_positions(n, pattern)
-        
+
         seed = random_seed + restart * 1000
         xs, ys, degs, score = optimize_small_group_sa(
-            n, init_xs, init_ys, init_degs,
-            n_iters, pos_delta, ang_delta, T_max, T_min, seed
+            n, init_xs, init_ys, init_degs, n_iters, pos_delta, ang_delta, T_max, T_min, seed
         )
-        
+
         if score < best_score:
             best_score = score
             best_xs[:] = xs[:]
             best_ys[:] = ys[:]
             best_degs[:] = degs[:]
-    
+
     return best_xs, best_ys, best_degs, best_score
 
 
@@ -393,17 +420,21 @@ def load_submission_data(filepath: str) -> tuple[np.ndarray, np.ndarray, np.ndar
     return np.array(all_xs), np.array(all_ys), np.array(all_degs)
 
 
-def save_submission(filepath: str, all_xs: np.ndarray, all_ys: np.ndarray, all_degs: np.ndarray) -> None:
+def save_submission(
+    filepath: str, all_xs: np.ndarray, all_ys: np.ndarray, all_degs: np.ndarray
+) -> None:
     rows = []
     idx = 0
     for n in range(1, 201):
         for t in range(n):
-            rows.append({
-                "id": f"{n:03d}_{t}",
-                "x": f"s{all_xs[idx]}",
-                "y": f"s{all_ys[idx]}",
-                "deg": f"s{all_degs[idx]}",
-            })
+            rows.append(
+                {
+                    "id": f"{n:03d}_{t}",
+                    "x": f"s{all_xs[idx]}",
+                    "y": f"s{all_ys[idx]}",
+                    "deg": f"s{all_degs[idx]}",
+                }
+            )
             idx += 1
     pd.DataFrame(rows).to_csv(filepath, index=False)
 
@@ -412,7 +443,10 @@ def calculate_total_score(all_xs: np.ndarray, all_ys: np.ndarray, all_degs: np.n
     total = 0.0
     for n in range(1, 201):
         start = n * (n - 1) // 2
-        vertices = [get_tree_vertices(all_xs[start + i], all_ys[start + i], all_degs[start + i]) for i in range(n)]
+        vertices = [
+            get_tree_vertices(all_xs[start + i], all_ys[start + i], all_degs[start + i])
+            for i in range(n)
+        ]
         total += calculate_score(vertices)
     return total
 
@@ -458,38 +492,40 @@ if __name__ == "__main__":
 
     for n in tqdm(range(n_min, n_max + 1), desc="Optimizing"):
         start = n * (n - 1) // 2
-        
+
         # 現在のスコア
-        orig_verts = [get_tree_vertices(new_xs[start + i], new_ys[start + i], new_degs[start + i]) for i in range(n)]
+        orig_verts = [
+            get_tree_vertices(new_xs[start + i], new_ys[start + i], new_degs[start + i])
+            for i in range(n)
+        ]
         orig_score = calculate_score(orig_verts)
-        
+
         # 最適化
         seed = seed_base + n * 10000
         opt_xs, opt_ys, opt_degs, opt_score = optimize_group_multistart(
             n, n_iters, pos_delta, ang_delta, T_max, T_min, n_restarts, seed
         )
-        
+
         # ベースラインの配置も試す
-        base_xs = new_xs[start:start + n].copy()
-        base_ys = new_ys[start:start + n].copy()
-        base_degs = new_degs[start:start + n].copy()
-        
+        base_xs = new_xs[start : start + n].copy()
+        base_ys = new_ys[start : start + n].copy()
+        base_degs = new_degs[start : start + n].copy()
+
         _, _, _, base_opt_score = optimize_small_group_sa(
-            n, base_xs, base_ys, base_degs,
-            n_iters, pos_delta, ang_delta, T_max, T_min, seed + 5000
+            n, base_xs, base_ys, base_degs, n_iters, pos_delta, ang_delta, T_max, T_min, seed + 5000
         )
-        
+
         # より良い方を選択
         if base_opt_score < opt_score:
             opt_xs, opt_ys, opt_degs, opt_score = base_xs, base_ys, base_degs, base_opt_score
-        
+
         if opt_score < orig_score - 1e-9:
             improvement = orig_score - opt_score
             total_improved += improvement
             improved_groups += 1
-            new_xs[start:start + n] = opt_xs
-            new_ys[start:start + n] = opt_ys
-            new_degs[start:start + n] = opt_degs
+            new_xs[start : start + n] = opt_xs
+            new_ys[start : start + n] = opt_ys
+            new_degs[start : start + n] = opt_degs
             print(f"  Group {n}: {orig_score:.6f} -> {opt_score:.6f} (improved {improvement:.6f})")
 
     final_score = calculate_total_score(new_xs, new_ys, new_degs)
@@ -508,4 +544,3 @@ if __name__ == "__main__":
         print(f"Saved to {out_path}")
     else:
         print("No improvement - keeping baseline")
-

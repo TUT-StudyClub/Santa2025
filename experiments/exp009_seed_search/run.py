@@ -264,7 +264,7 @@ def sa_optimize_grid(
     a, b = a_init, b_init
 
     all_vertices = create_grid_vertices(seed_xs, seed_ys, seed_degs, a, b, ncols, nrows)
-    
+
     # 初期状態で重なりがある場合は間隔を広げる
     while has_any_overlap(all_vertices):
         a *= 1.1
@@ -311,7 +311,9 @@ def sa_optimize_grid(
             new_vertices = create_grid_vertices(seed_xs, seed_ys, seed_degs, a, b, ncols, nrows)
             if has_any_overlap(new_vertices):
                 if move_type < n_seeds:
-                    seed_xs[move_type], seed_ys[move_type], seed_degs[move_type] = old_x, old_y, old_deg
+                    seed_xs[move_type] = old_x
+                    seed_ys[move_type] = old_y
+                    seed_degs[move_type] = old_deg
                 else:
                     a, b = old_a, old_b
                 continue
@@ -333,7 +335,9 @@ def sa_optimize_grid(
                     best_a, best_b = a, b
             else:
                 if move_type < n_seeds:
-                    seed_xs[move_type], seed_ys[move_type], seed_degs[move_type] = old_x, old_y, old_deg
+                    seed_xs[move_type] = old_x
+                    seed_ys[move_type] = old_y
+                    seed_degs[move_type] = old_deg
                 else:
                     a, b = old_a, old_b
 
@@ -384,7 +388,12 @@ def deletion_cascade(
         start_prev = (n - 1) * (n - 2) // 2
 
         # 現在のn-1グループのサイドを計算
-        prev_verts = [get_tree_vertices(new_xs[start_prev + i], new_ys[start_prev + i], new_degs[start_prev + i]) for i in range(n - 1)]
+        prev_verts = [
+            get_tree_vertices(
+                new_xs[start_prev + i], new_ys[start_prev + i], new_degs[start_prev + i]
+            )
+            for i in range(n - 1)
+        ]
         best_side = get_side_length(prev_verts)
         best_delete_idx = -1
 
@@ -418,24 +427,28 @@ def deletion_cascade(
 # -----------------------------------------------------------------------------
 def optimize_seed_config(args: tuple) -> tuple[float, list, float, float]:
     deg1, deg2, sa_params, seed = args
-    
+
     # 2シードの初期配置
     seed_xs = np.array([0.0, 0.4], dtype=np.float64)
     seed_ys = np.array([0.0, 0.35], dtype=np.float64)
     seed_degs = np.array([deg1, deg2], dtype=np.float64)
-    
+
     # 初期間隔
     a_init = 0.85
     b_init = 0.75
-    
+
     # グリッドサイズ（200本に近い構成）
     ncols = 10
     nrows = 10
-    
+
     score, opt_xs, opt_ys, opt_degs, opt_a, opt_b = sa_optimize_grid(
-        seed_xs, seed_ys, seed_degs,
-        a_init, b_init,
-        ncols, nrows,
+        seed_xs,
+        seed_ys,
+        seed_degs,
+        a_init,
+        b_init,
+        ncols,
+        nrows,
         sa_params["Tmax"],
         sa_params["Tmin"],
         sa_params["nsteps"],
@@ -445,7 +458,7 @@ def optimize_seed_config(args: tuple) -> tuple[float, list, float, float]:
         sa_params["delta_t"],
         seed,
     )
-    
+
     return score, [(opt_xs[i], opt_ys[i], opt_degs[i]) for i in range(len(opt_xs))], opt_a, opt_b
 
 
@@ -468,17 +481,21 @@ def load_submission_data(filepath: str) -> tuple[np.ndarray, np.ndarray, np.ndar
     return np.array(all_xs), np.array(all_ys), np.array(all_degs)
 
 
-def save_submission(filepath: str, all_xs: np.ndarray, all_ys: np.ndarray, all_degs: np.ndarray) -> None:
+def save_submission(
+    filepath: str, all_xs: np.ndarray, all_ys: np.ndarray, all_degs: np.ndarray
+) -> None:
     rows = []
     idx = 0
     for n in range(1, 201):
         for t in range(n):
-            rows.append({
-                "id": f"{n:03d}_{t}",
-                "x": f"s{all_xs[idx]}",
-                "y": f"s{all_ys[idx]}",
-                "deg": f"s{all_degs[idx]}",
-            })
+            rows.append(
+                {
+                    "id": f"{n:03d}_{t}",
+                    "x": f"s{all_xs[idx]}",
+                    "y": f"s{all_ys[idx]}",
+                    "deg": f"s{all_degs[idx]}",
+                }
+            )
             idx += 1
     pd.DataFrame(rows).to_csv(filepath, index=False)
 
@@ -487,7 +504,9 @@ def calculate_total_score(all_xs: np.ndarray, all_ys: np.ndarray, all_degs: np.n
     total = 0.0
     idx = 0
     for n in range(1, 201):
-        vertices = [get_tree_vertices(all_xs[idx + i], all_ys[idx + i], all_degs[idx + i]) for i in range(n)]
+        vertices = [
+            get_tree_vertices(all_xs[idx + i], all_ys[idx + i], all_degs[idx + i]) for i in range(n)
+        ]
         total += calculate_score(vertices)
         idx += n
     return total
@@ -514,14 +533,14 @@ if __name__ == "__main__":
     angle_step = float(search_cfg["angle_step"])
     angle_min = float(search_cfg.get("angle_min", 0))
     angle_max = float(search_cfg.get("angle_max", 180))
-    
+
     sa_params = CONFIG["sa_params"]
     seed_base = int(sa_params.get("random_seed_base", 42))
 
     # 角度の組み合わせを生成
     angles = np.arange(angle_min, angle_max, angle_step)
     tasks = []
-    
+
     for i, deg1 in enumerate(angles):
         for j, deg2 in enumerate(angles):
             if deg2 >= deg1 + 90:  # 2つの角度の差が90度以上
@@ -538,7 +557,8 @@ if __name__ == "__main__":
 
     results = []
     with Pool(num_workers) as pool:
-        for result in tqdm(pool.imap_unordered(optimize_seed_config, tasks), total=len(tasks), desc="Searching"):
+        itr = pool.imap_unordered(optimize_seed_config, tasks)
+        for result in tqdm(itr, total=len(tasks), desc="Searching"):
             results.append(result)
 
     print(f"\nSearch completed in {time.time() - t0:.1f}s")
@@ -547,7 +567,7 @@ if __name__ == "__main__":
     best_result = min(results, key=lambda x: x[0])
     best_score, best_seeds, best_a, best_b = best_result
 
-    print(f"\nBest seed configuration:")
+    print("\nBest seed configuration:")
     print(f"  Score (200 trees): {best_score:.6f}")
     print(f"  Grid spacing: a={best_a:.4f}, b={best_b:.4f}")
     for i, (x, y, deg) in enumerate(best_seeds[:2]):
@@ -556,10 +576,9 @@ if __name__ == "__main__":
     # この結果を使って全グループを最適化するかどうか
     if best_score < 0.35:  # 良い結果が見つかった場合
         print("\nGood seed configuration found! Use this for full optimization.")
-        print(f"Suggested initial_state:")
-        print(f"  seeds:")
+        print("Suggested initial_state:")
+        print("  seeds:")
         for x, y, deg in best_seeds[:2]:
             print(f"    - [{x}, {y}, {deg}]")
         print(f"  translation_a: {best_a}")
         print(f"  translation_b: {best_b}")
-

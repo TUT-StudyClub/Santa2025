@@ -3,6 +3,7 @@
 """
 
 import math
+
 import numpy as np
 import pandas as pd
 from numba import njit
@@ -31,14 +32,26 @@ def get_tree_vertices(cx: float, cy: float, angle_deg: float) -> np.ndarray:
     sin_a = math.sin(angle_rad)
     vertices = np.empty((15, 2), dtype=np.float64)
 
-    pts = np.array([
-        [0.0, TIP_Y], [TOP_W / 2.0, TIER_1_Y], [TOP_W / 4.0, TIER_1_Y],
-        [MID_W / 2.0, TIER_2_Y], [MID_W / 4.0, TIER_2_Y], [BASE_W / 2.0, BASE_Y],
-        [TRUNK_W / 2.0, BASE_Y], [TRUNK_W / 2.0, TRUNK_BOTTOM_Y],
-        [-TRUNK_W / 2.0, TRUNK_BOTTOM_Y], [-TRUNK_W / 2.0, BASE_Y],
-        [-BASE_W / 2.0, BASE_Y], [-MID_W / 4.0, TIER_2_Y], [-MID_W / 2.0, TIER_2_Y],
-        [-TOP_W / 4.0, TIER_1_Y], [-TOP_W / 2.0, TIER_1_Y],
-    ], dtype=np.float64)
+    pts = np.array(
+        [
+            [0.0, TIP_Y],
+            [TOP_W / 2.0, TIER_1_Y],
+            [TOP_W / 4.0, TIER_1_Y],
+            [MID_W / 2.0, TIER_2_Y],
+            [MID_W / 4.0, TIER_2_Y],
+            [BASE_W / 2.0, BASE_Y],
+            [TRUNK_W / 2.0, BASE_Y],
+            [TRUNK_W / 2.0, TRUNK_BOTTOM_Y],
+            [-TRUNK_W / 2.0, TRUNK_BOTTOM_Y],
+            [-TRUNK_W / 2.0, BASE_Y],
+            [-BASE_W / 2.0, BASE_Y],
+            [-MID_W / 4.0, TIER_2_Y],
+            [-MID_W / 2.0, TIER_2_Y],
+            [-TOP_W / 4.0, TIER_1_Y],
+            [-TOP_W / 2.0, TIER_1_Y],
+        ],
+        dtype=np.float64,
+    )
 
     for i in range(15):
         rx, ry = rotate_point(pts[i, 0], pts[i, 1], cos_a, sin_a)
@@ -56,10 +69,14 @@ def compute_bounding_box(all_vertices: list[np.ndarray]) -> tuple[float, float, 
     for verts in all_vertices:
         for i in range(verts.shape[0]):
             x, y = verts[i, 0], verts[i, 1]
-            if x < min_x: min_x = x
-            if x > max_x: max_x = x
-            if y < min_y: min_y = y
-            if y > max_y: max_y = y
+            if x < min_x:
+                min_x = x
+            if x > max_x:
+                max_x = x
+            if y < min_y:
+                min_y = y
+            if y > max_y:
+                max_y = y
     return min_x, min_y, max_x, max_y
 
 
@@ -94,45 +111,48 @@ def load_submission_data(filepath: str) -> tuple[np.ndarray, np.ndarray, np.ndar
 def main():
     filepath = "submissions/baseline.csv"
     print(f"Analyzing: {filepath}")
-    
+
     all_xs, all_ys, all_degs = load_submission_data(filepath)
-    
+
     # 各グループのスコアを計算
     scores = []
     total = 0.0
-    
+
     for n in range(1, 201):
         start = n * (n - 1) // 2
-        vertices = [get_tree_vertices(all_xs[start + i], all_ys[start + i], all_degs[start + i]) for i in range(n)]
+        vertices = [
+            get_tree_vertices(all_xs[start + i], all_ys[start + i], all_degs[start + i])
+            for i in range(n)
+        ]
         score = calculate_score(vertices)
         side = get_side_length(vertices)
         scores.append((n, score, side))
         total += score
-    
+
     print(f"\nTotal score: {total:.6f}")
     print(f"\n{'Group':>6} {'Score':>12} {'Side':>10} {'Efficiency':>12}")
     print("-" * 45)
-    
+
     # 理論的な最小スコア（完璧な正方形配置の場合）を計算
     # 1本の木の面積は約 base_w * (tip_y - trunk_bottom_y) = 0.7 * 1.0 = 0.7
     tree_area = 0.7 * 1.0
-    
+
     # スコアが高い（悪い）グループを表示
     sorted_scores = sorted(scores, key=lambda x: x[1], reverse=True)
-    
+
     print("\nWorst 20 groups (highest scores):")
     for n, score, side in sorted_scores[:20]:
         # 効率 = 理論最小 / 実際のスコア
         theoretical_min = tree_area  # 理想的には side^2/n = tree_area
         efficiency = theoretical_min / score * 100
         print(f"{n:>6} {score:>12.6f} {side:>10.4f} {efficiency:>11.1f}%")
-    
+
     print("\nBest 20 groups (lowest scores):")
     for n, score, side in sorted_scores[-20:]:
         theoretical_min = tree_area
         efficiency = theoretical_min / score * 100
         print(f"{n:>6} {score:>12.6f} {side:>10.4f} {efficiency:>11.1f}%")
-    
+
     # スコアの分布
     print("\nScore distribution by group size:")
     for start_n in range(1, 201, 20):
@@ -144,4 +164,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
