@@ -183,11 +183,40 @@ uv run python tools/upload_dataset.py \
   --src-dir outputs/runs/exp000_sample/000
 ```
 
+## 分析スクリプト
+`scripts/` ディレクトリには、提出ファイルの分析用スクリプトがあります。
+
+### `analyze_scores.py`
+各グループのスコアを分析して、改善の余地があるグループを特定します。
+
+```bash
+uv run python scripts/analyze_scores.py
+```
+
+**出力内容:**
+- 総スコア
+- スコアが最も悪い（高い）20グループ
+- スコアが最も良い（低い）20グループ
+- グループサイズ別のスコア分布
+
+### `theoretical_analysis.py`
+理論的な最小スコアと現在のベースラインの効率を分析します。
+
+```bash
+uv run python scripts/theoretical_analysis.py
+```
+
+**出力内容:**
+- 木の形状パラメータ（高さ、幅、面積）
+- 異なるパッキング効率での理論的最小スコア
+- グループごとのスコア、サイド長、幅、高さ、アスペクト比、効率
+- アスペクト比が悪い（改善の余地がある）グループの特定
+
 ## 主要ディレクトリ
 - `experiments/`: 実験（major/minor で再現）
 - `src/`: 再利用コード（長く使うロジックはここへ）
 - `notebooks/`: EDA / 試行（出力セルはコミットしない運用推奨）
-- `scripts/`: 補助スクリプト（DL など）
+- `scripts/`: 補助スクリプト（DL、分析など）
 - `configs/`: 共通設定（必要に応じて）
 - `docs/`: 運用/実験ログ
 
