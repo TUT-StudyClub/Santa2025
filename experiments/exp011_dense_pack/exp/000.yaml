@@ -16,8 +16,8 @@ tree_shape:
 
 optimization:
   # 最適化するグループの範囲
-  n_min: 2
-  n_max: 50
+  n_min: 21
+  n_max: 60
   # 各パターンあたりの反復回数
   n_iters: 100000
   # 位置の探索幅
@@ -29,6 +29,3 @@ optimization:
   T_min: 0.0001
   # 乱数シード
   seed_base: 42
-
-
-

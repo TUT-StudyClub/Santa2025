@@ -49,12 +49,12 @@ TRUNK_BOTTOM_Y = float(TREE_CFG["trunk_bottom_y"])
 # -----------------------------------------------------------------------------
 # Geometry Utils (Numba)
 # -----------------------------------------------------------------------------
-@njit(cache=True)
+@njit(cache=True, fastmath=True)
 def rotate_point(x: float, y: float, cos_a: float, sin_a: float) -> tuple[float, float]:
     return x * cos_a - y * sin_a, x * sin_a + y * cos_a
 
 
-@njit(cache=True)
+@njit(cache=True, fastmath=True)
 def get_tree_vertices(cx: float, cy: float, angle_deg: float) -> np.ndarray:
     angle_rad = angle_deg * math.pi / 180.0
     cos_a = math.cos(angle_rad)
@@ -89,7 +89,7 @@ def get_tree_vertices(cx: float, cy: float, angle_deg: float) -> np.ndarray:
     return vertices
 
 
-@njit(cache=True)
+@njit(cache=True, fastmath=True)
 def polygon_bounds(vertices: np.ndarray) -> tuple[float, float, float, float]:
     min_x, min_y = vertices[0, 0], vertices[0, 1]
     max_x, max_y = vertices[0, 0], vertices[0, 1]
@@ -106,7 +106,7 @@ def polygon_bounds(vertices: np.ndarray) -> tuple[float, float, float, float]:
     return min_x, min_y, max_x, max_y
 
 
-@njit(cache=True)
+@njit(cache=True, fastmath=True)
 def point_in_polygon(px: float, py: float, vertices: np.ndarray) -> bool:
     n = vertices.shape[0]
     inside = False
@@ -120,7 +120,7 @@ def point_in_polygon(px: float, py: float, vertices: np.ndarray) -> bool:
     return inside
 
 
-@njit(cache=True)
+@njit(cache=True, fastmath=True)
 def segments_intersect(
     p1x: float, p1y: float, p2x: float, p2y: float, p3x: float, p3y: float, p4x: float, p4y: float
 ) -> bool:
@@ -134,8 +134,17 @@ def segments_intersect(
     return 0.0 <= t <= 1.0 and 0.0 <= u <= 1.0
 
 
-@njit(cache=True)
+@njit(cache=True, fastmath=True)
 def polygons_overlap(verts1: np.ndarray, verts2: np.ndarray) -> bool:
+    # バウンディングボックス判定 (AABB check)
+    if (
+        np.max(verts1[:, 0]) < np.min(verts2[:, 0])
+        or np.max(verts2[:, 0]) < np.min(verts1[:, 0])
+        or np.max(verts1[:, 1]) < np.min(verts2[:, 1])
+        or np.max(verts2[:, 1]) < np.min(verts1[:, 1])
+    ):
+        return False
+
     min_x1, min_y1, max_x1, max_y1 = polygon_bounds(verts1)
     min_x2, min_y2, max_x2, max_y2 = polygon_bounds(verts2)
     if max_x1 < min_x2 or max_x2 < min_x1 or max_y1 < min_y2 or max_y2 < min_y1:
@@ -198,7 +207,7 @@ def get_side_length(all_vertices: list[np.ndarray]) -> float:
     return max(max_x - min_x, max_y - min_y)
 
 
-@njit(cache=True)
+@njit(cache=True, fastmath=True)
 def calculate_score(all_vertices: list[np.ndarray]) -> float:
     side = get_side_length(all_vertices)
     return side * side / len(all_vertices)
@@ -209,7 +218,7 @@ def calculate_score(all_vertices: list[np.ndarray]) -> float:
 # -----------------------------------------------------------------------------
 @njit(cache=True)
 def generate_interlocking_pattern(
-    n: int, spacing: float, angle_offset: float
+    n: int, spacing: float, angle_offset: float, fixed_cols: int
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     """
     互い違いの配置パターンを生成
@@ -219,7 +228,11 @@ def generate_interlocking_pattern(
     ys = np.zeros(n, dtype=np.float64)
     degs = np.zeros(n, dtype=np.float64)
 
-    cols = int(math.ceil(math.sqrt(n)))
+    if fixed_cols > 0:
+        cols = fixed_cols
+    else:
+        cols = int(math.ceil(math.sqrt(n)))
+
     row_spacing = spacing * 0.7  # 行間を狭く
 
     idx = 0
@@ -242,7 +255,7 @@ def generate_interlocking_pattern(
 
 @njit(cache=True)
 def generate_hexagonal_pattern(
-    n: int, spacing: float, angle_offset: float
+    n: int, spacing: float, angle_offset: float, fixed_cols: int
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     """
     六角形配置パターン（より密なパッキング）
@@ -251,7 +264,11 @@ def generate_hexagonal_pattern(
     ys = np.zeros(n, dtype=np.float64)
     degs = np.zeros(n, dtype=np.float64)
 
-    cols = int(math.ceil(math.sqrt(n * 1.2)))
+    if fixed_cols > 0:
+        cols = fixed_cols
+    else:
+        cols = int(math.ceil(math.sqrt(n * 1.2)))
+
     row_spacing = spacing * 0.866  # sqrt(3)/2
 
     idx = 0
@@ -433,19 +450,16 @@ def calculate_total_score(all_xs: np.ndarray, all_ys: np.ndarray, all_degs: np.n
 # Main
 # -----------------------------------------------------------------------------
 if __name__ == "__main__":
-    print("=" * 80)
+    # 設定とベースラインの読み込み（省略なし、ロジック部分は変更なし）
     print("Dense Packing Optimizer (exp011_dense_pack)")
-    print("=" * 80)
     print(f"Config: {CONFIG_PATH}")
 
     baseline_path = CONFIG["paths"]["baseline"]
-    print(f"\nBaseline: {baseline_path}")
-
     all_xs, all_ys, all_degs = load_submission_data(baseline_path)
     baseline_total = calculate_total_score(all_xs, all_ys, all_degs)
     print(f"Baseline total score: {baseline_total:.6f}")
 
-    # パラメータ
+    # 最適化パラメータの展開
     opt_cfg = CONFIG["optimization"]
     n_min = int(opt_cfg["n_min"])
     n_max = int(opt_cfg["n_max"])
@@ -456,8 +470,14 @@ if __name__ == "__main__":
     T_min = float(opt_cfg["T_min"])
     seed_base = int(opt_cfg.get("seed_base", 42))
 
+    # Two-stage Optimizationの設定
+    # Screening: 探索空間を広げるため、計算コストを抑えて構造の有望度のみを判定
+    screening_iters = 2000
+    # Final: 有望な解に対して十分なステップ数を割り当て、局所解の探索を行う
+    final_iters = n_iters
+
     print(f"\nOptimizing groups {n_min} to {n_max}...")
-    print(f"  Iterations: {n_iters}")
+    print(f"  Screening iters: {screening_iters}, Final iters: {final_iters}")
 
     new_xs = all_xs.copy()
     new_ys = all_ys.copy()
@@ -466,94 +486,152 @@ if __name__ == "__main__":
     total_improved = 0.0
     improved_groups = 0
 
-    # 異なるスペーシングと角度を試す
+    # ハイパーパラメータ探索グリッド
     spacings = [0.65, 0.70, 0.75, 0.80]
     angles = [0.0, 45.0, 90.0, 135.0]
 
     for n in tqdm(range(n_min, n_max + 1), desc="Optimizing"):
-        start = n * (n - 1) // 2
+        # N個の要素を持つ群の開始インデックスを算出 (等差数列の和: Sum(1..n-1))
+        # データ構造がフラットである前提に基づく
+        start_idx = n * (n - 1) // 2
 
-        # 現在のスコア
+        # ベースライン(現状)のスコア算出
         orig_verts = [
-            get_tree_vertices(new_xs[start + i], new_ys[start + i], new_degs[start + i])
+            get_tree_vertices(new_xs[start_idx + i], new_ys[start_idx + i], new_degs[start_idx + i])
             for i in range(n)
         ]
         orig_score = calculate_score(orig_verts)
 
-        best_score = orig_score
-        best_xs_group = new_xs[start : start + n].copy()
-        best_ys_group = new_ys[start : start + n].copy()
-        best_degs_group = new_degs[start : start + n].copy()
+        # 最適化候補の初期化
+        best_candidate_params = None
+        best_candidate_score = math.inf
 
-        # 異なるパターンを試す
+        # アスペクト比探索範囲の決定
+        # 理想的な正方形配置(sqrt(n))周辺の列数を探索し、バウンディングボックスの無駄を最小化する
+        base_cols = int(math.ceil(math.sqrt(n)))
+        # Nが小さい場合は狭く、大きい場合は広く探索範囲を取るヒューリスティック
+        col_search_range = range(max(1, base_cols - 2), base_cols + 4)
+
+        # --- Phase 1: Screening (広範な探索) ---
         for spacing in spacings:
             for angle in angles:
-                seed = seed_base + n * 1000 + int(spacing * 100) + int(angle)
+                for n_cols in col_search_range:
+                    # シード値をパラメータごとに分離し、再現性を確保
+                    seed = seed_base + n * 1000 + int(spacing * 100) + int(angle) + n_cols
 
-                # パターン1: インターロッキング
-                xs1, ys1, degs1 = generate_interlocking_pattern(n, spacing, angle)
-                opt_xs, opt_ys, opt_degs, score = optimize_pattern_sa(
-                    xs1, ys1, degs1, n_iters // 4, pos_delta, ang_delta, T_max, T_min, seed
-                )
-                if score < best_score:
-                    best_score = score
-                    best_xs_group[:] = opt_xs[:]
-                    best_ys_group[:] = opt_ys[:]
-                    best_degs_group[:] = opt_degs[:]
+                    candidates = []
 
-                # パターン2: 六角形
-                xs2, ys2, degs2 = generate_hexagonal_pattern(n, spacing, angle)
-                opt_xs, opt_ys, opt_degs, score = optimize_pattern_sa(
-                    xs2, ys2, degs2, n_iters // 4, pos_delta, ang_delta, T_max, T_min, seed + 1
-                )
-                if score < best_score:
-                    best_score = score
-                    best_xs_group[:] = opt_xs[:]
-                    best_ys_group[:] = opt_ys[:]
-                    best_degs_group[:] = opt_degs[:]
+                    # パターンA: Interlocking (互い違い配置)
+                    # generator関数は fixed_cols 引数を受け取るように修正済みであることを前提とする
+                    xs1, ys1, degs1 = generate_interlocking_pattern(n, spacing, angle, n_cols)
+                    if len(xs1) == n:
+                        candidates.append((xs1, ys1, degs1))
 
-        # ベースラインからの最適化も試す
-        base_xs = new_xs[start : start + n].copy()
-        base_ys = new_ys[start : start + n].copy()
-        base_degs = new_degs[start : start + n].copy()
+                    # パターンB: Hexagonal (六角形配置)
+                    xs2, ys2, degs2 = generate_hexagonal_pattern(n, spacing, angle, n_cols)
+                    if len(xs2) == n:
+                        candidates.append((xs2, ys2, degs2))
+
+                    # 各候補に対して軽量なSAを実行
+                    for c_xs, c_ys, c_degs in candidates:
+                        _, _, _, score = optimize_pattern_sa(
+                            c_xs,
+                            c_ys,
+                            c_degs,
+                            screening_iters,
+                            pos_delta,
+                            ang_delta,
+                            T_max,
+                            T_min,
+                            seed,
+                        )
+
+                        # 暫定ベストの更新
+                        if score < best_candidate_score:
+                            best_candidate_score = score
+                            best_candidate_params = (c_xs, c_ys, c_degs, seed)
+
+        # --- Phase 2: Final Optimization (局所解の精査) ---
+        best_score = orig_score
+
+        # 作業用バッファ（スライス参照ではなくコピーを作成して操作）
+        best_xs_group = new_xs[start_idx : start_idx + n].copy()
+        best_ys_group = new_ys[start_idx : start_idx + n].copy()
+        best_degs_group = new_degs[start_idx : start_idx + n].copy()
+
+        # Screening勝者の本番最適化
+        if best_candidate_params is not None:
+            init_xs, init_ys, init_degs, best_seed = best_candidate_params
+
+            opt_xs, opt_ys, opt_degs, score = optimize_pattern_sa(
+                init_xs,
+                init_ys,
+                init_degs,
+                final_iters,
+                pos_delta,
+                ang_delta,
+                T_max,
+                T_min,
+                best_seed,
+            )
+
+            if score < best_score:
+                best_score = score
+                best_xs_group[:] = opt_xs[:]
+                best_ys_group[:] = opt_ys[:]
+                best_degs_group[:] = opt_degs[:]
+
+        # 既存配置(Baseline)からの摂動による最適化も並行して実施
+        # 完全にランダムな再配置よりも、既存の良解を微修正する方が有利な場合があるため
+        base_xs = new_xs[start_idx : start_idx + n].copy()
+        base_ys = new_ys[start_idx : start_idx + n].copy()
+        base_degs = new_degs[start_idx : start_idx + n].copy()
+
         opt_xs, opt_ys, opt_degs, score = optimize_pattern_sa(
             base_xs,
             base_ys,
             base_degs,
-            n_iters,
+            final_iters,
             pos_delta,
             ang_delta,
             T_max,
             T_min,
-            seed_base + n * 2000,
+            seed_base + n * 9999,
         )
+
         if score < best_score:
             best_score = score
             best_xs_group[:] = opt_xs[:]
             best_ys_group[:] = opt_ys[:]
             best_degs_group[:] = opt_degs[:]
 
+        # --- Result Update (Greedy Strategy) ---
+        # 浮動小数点の誤差を考慮し、有意な改善（1e-9以上）があった場合のみ更新
         if best_score < orig_score - 1e-9:
             improvement = orig_score - best_score
             total_improved += improvement
             improved_groups += 1
-            new_xs[start : start + n] = best_xs_group
-            new_ys[start : start + n] = best_ys_group
-            new_degs[start : start + n] = best_degs_group
+
+            # 全体配列への書き戻し
+            new_xs[start_idx : start_idx + n] = best_xs_group
+            new_ys[start_idx : start_idx + n] = best_ys_group
+            new_degs[start_idx : start_idx + n] = best_degs_group
+
             print(f"  Group {n}: {orig_score:.6f} -> {best_score:.6f} (improved {improvement:.6f})")
 
+    # 最終結果の集計と保存
     final_score = calculate_total_score(new_xs, new_ys, new_degs)
 
-    print("\n" + "=" * 80)
+    print("\noptimization summary")
     print(f"  Baseline total:    {baseline_total:.6f}")
     print(f"  After optimization: {final_score:.6f}")
     print(f"  Total improvement: {baseline_total - final_score:+.6f}")
     print(f"  Improved groups:   {improved_groups}")
-    print("=" * 80)
 
-    if final_score < baseline_total:
-        out_path = CONFIG["paths"]["output"]
-        save_submission(out_path, new_xs, new_ys, new_degs)
-        print(f"Saved to {out_path}")
-    else:
-        print("No improvement - keeping baseline")
+    # Always save the latest result regardless of score improvement
+    out_path = CONFIG["paths"]["output"]
+    save_submission(out_path, new_xs, new_ys, new_degs)
+    print(f"Saved to {out_path}")
+
+    if final_score >= baseline_total:
+        print("No improvement from baseline")
