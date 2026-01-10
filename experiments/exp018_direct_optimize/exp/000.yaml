@@ -1,0 +1,61 @@
+# exp018_direct_optimize: 設定ファイル
+# ベースラインの各グループを直接最適化
+
+tree_shape:
+  trunk_w: 0.15
+  trunk_h: 0.2
+  base_w: 0.7
+  mid_w: 0.4
+  top_w: 0.25
+  tip_y: 0.8
+  tier_1_y: 0.5
+  tier_2_y: 0.25
+  base_y: 0.0
+  trunk_bottom_y: -0.2
+
+paths:
+  baseline: "submissions/baseline.csv"
+  output: "submissions/submission.csv"
+
+optimization:
+  n_min: 2
+  n_max: 200
+  seed: 42
+  global_rotation:
+    enabled: true
+    post_enabled: true
+    angle_min: 0.0
+    angle_max: 355.0
+    angle_step: 5.0
+    center: bounds
+  multistart:
+    restarts: 2
+    pos_std: 0.01
+    ang_std: 1.0
+    max_jitter_tries: 5
+
+  sa:
+    enabled: true
+    n_iters: 5000  # n倍される
+    T_max: 0.05
+    T_min: 0.0001
+    pos_delta: 0.03
+    ang_delta: 3.0
+
+  coordinate_descent:
+    enabled: true
+    n_passes: 30
+    step_size: 0.005
+    step_decay: 0.7
+
+  shrink_aniso:
+    enabled: true
+    min_scale_x: 0.80
+    min_scale_y: 0.80
+    n_iters: 30
+    center: bounds
+
+  shrink:
+    enabled: true
+    min_scale: 0.85
+    n_iters: 30

@@ -10,6 +10,7 @@
 
 | Date | Author | Branch/PR | Change | Seed | CV | LB | Command/Config | Note |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| 2026-01-09 | yuhei | - | exp018_direct_optimize direct group optimization | 42 | - | score=70.829249 | `uv run python experiments/exp018_direct_optimize/run.py exp=000` | baseline.csv, 改善なし |
 | 2026-01-08 | yuhei | - | exp007_intensive 強化SA + 回転後shrink | 42 | - | score=70.836885 | `uv run ./experiments/exp007_intensive/run.py exp=000` | baseline.csv, 強化パラメータ |
 | 2026-01-05 | yuhei | - | exp004_baseline anisotropic shrink + rotate | 42 | - | score=70.892099 | `uv run ./experiments/exp004_baseline/run.py exp=007` | baseline.csv, shrink_aniso, rotate |
 | 2026-01-05 | haruto | exp/kotou/20260105 | exp006_hill 貪欲法の改良 | 42 | - | score=70.892100493950 | `python ./experiments/exp006_hill/run.py exp=001` | - |

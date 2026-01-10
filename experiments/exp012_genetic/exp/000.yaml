@@ -1,0 +1,29 @@
+paths:
+  baseline: "submissions/baseline.csv"
+  output: "submissions/submission.csv"
+
+tree_shape:
+  trunk_w: 0.15
+  trunk_h: 0.2
+  base_w: 0.7
+  mid_w: 0.4
+  top_w: 0.25
+  tip_y: 0.8
+  tier_1_y: 0.5
+  tier_2_y: 0.25
+  base_y: 0.0
+  trunk_bottom_y: -0.2
+
+genetic:
+  n_min: 2
+  n_max: 50  # 小さいグループに集中
+  pop_size: 30
+  n_generations: 50
+  mutation_rate: 0.3
+  pos_sigma: 0.1
+  deg_sigma: 15.0
+  elite_ratio: 0.1
+  local_search_iters: 5000
+  seed_base: 42
+
+

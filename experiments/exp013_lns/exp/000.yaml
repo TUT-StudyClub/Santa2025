@@ -14,21 +14,14 @@ tree_shape:
   base_y: 0.0
   trunk_bottom_y: -0.2
 
-optimization:
-  # 最適化するグループの範囲
+lns:
   n_min: 2
-  n_max: 50
-  # 各パターンあたりの反復回数
-  n_iters: 100000
-  # 位置の探索幅
-  pos_delta: 0.08
-  # 角度の探索幅（度）
-  ang_delta: 20.0
-  # SA温度パラメータ
-  T_max: 0.05
+  n_max: 100
+  n_iterations: 100
+  destroy_ratio: 0.3
+  T_max: 0.01
   T_min: 0.0001
-  # 乱数シード
+  repair_steps: 5000
   seed_base: 42
-
 
 
