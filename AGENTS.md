@@ -33,3 +33,9 @@
 - `scripts/`: 補助スクリプト
 - `notebooks/`: EDA/試行
 - `docs/`: 実験ログ/運用ドキュメント
+
+## 可視化
+- 基本実行 (メトリクス + N=200): `uv run scripts/visualize_experiments.py`
+- 特定グループ (N=50): `uv run scripts/visualize_experiments.py --group 50`
+- 全グループ一括: `uv run scripts/visualize_experiments.py --group-all`
+- 提出ファイル指定: `uv run scripts/visualize_experiments.py --submission-path submissions/best.csv`

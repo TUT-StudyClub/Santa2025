@@ -212,6 +212,20 @@ uv run python scripts/theoretical_analysis.py
 - グループごとのスコア、サイド長、幅、高さ、アスペクト比、効率
 - アスペクト比が悪い（改善の余地がある）グループの特定
 
+### `visualize_experiments.py`
+実験ログのスコア推移や、提出ファイルの配置図を可視化します。
+
+**基本実行 (メトリクス + N=200の配置図):**
+```bash
+uv run scripts/visualize_experiments.py
+```
+
+**その他のオプション:**
+- `--group 50`: N=50 の配置図のみ出力
+- `--group-all`: N=1〜200 全ての配置図を出力
+- `--submission-path submissions/best.csv`: 特定の提出ファイルを指定
+
+
 ## 主要ディレクトリ
 - `experiments/`: 実験（major/minor で再現）
 - `src/`: 再利用コード（長く使うロジックはここへ）
