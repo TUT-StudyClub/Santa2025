@@ -115,14 +115,10 @@ def compute_bounding_box(all_vertices: list[np.ndarray]) -> tuple[float, float, 
     for verts in all_vertices:
         for i in range(verts.shape[0]):
             x, y = verts[i, 0], verts[i, 1]
-            if x < min_x:
-                min_x = x
-            if x > max_x:
-                max_x = x
-            if y < min_y:
-                min_y = y
-            if y > max_y:
-                max_y = y
+            min_x = min(min_x, x)
+            max_x = max(max_x, x)
+            min_y = min(min_y, y)
+            max_y = max(max_y, y)
     return min_x, min_y, max_x, max_y
 
 
@@ -154,9 +150,7 @@ filepath = "submissions/baseline.csv"
 all_xs, all_ys, all_degs = load_submission_data(filepath)
 
 # グループごとの効率を計算
-header = (
-    f"\n{'Group':>6} {'Score':>10} {'Side':>8} {'Width':>8} {'Height':>8} {'Aspect':>8} {'Eff%':>8}"
-)
+header = f"\n{'Group':>6} {'Score':>10} {'Side':>8} {'Width':>8} {'Height':>8} {'Aspect':>8} {'Eff%':>8}"
 print(header)
 print("-" * 70)
 
@@ -165,10 +159,7 @@ aspect_ratios = []
 
 for n in range(1, 201):
     start = n * (n - 1) // 2
-    vertices = [
-        get_tree_vertices(all_xs[start + i], all_ys[start + i], all_degs[start + i])
-        for i in range(n)
-    ]
+    vertices = [get_tree_vertices(all_xs[start + i], all_ys[start + i], all_degs[start + i]) for i in range(n)]
     side, width, height = get_side_and_dims(vertices)
     score = side * side / n
     total_score += score
@@ -181,11 +172,8 @@ for n in range(1, 201):
     theoretical_min = TREE_AREA
     efficiency = theoretical_min / score * 100
 
-    if n <= 20 or n % 20 == 0:
-        print(
-            f"{n:>6} {score:>10.6f} {side:>8.4f} {width:>8.4f} "
-            f"{height:>8.4f} {aspect:>8.3f} {efficiency:>7.1f}%"
-        )
+    if n <= 20 or n % 20 == 0:  # noqa: PLR2004
+        print(f"{n:>6} {score:>10.6f} {side:>8.4f} {width:>8.4f} {height:>8.4f} {aspect:>8.3f} {efficiency:>7.1f}%")
 
 print(f"\nTotal score: {total_score:.6f}")
 print(f"Average aspect ratio: {np.mean(aspect_ratios):.3f}")
@@ -201,10 +189,7 @@ group_aspects.sort(key=lambda x: x[1])
 print("Worst 10 aspect ratios (far from square):")
 for n, aspect in group_aspects[:10]:
     start = n * (n - 1) // 2
-    vertices = [
-        get_tree_vertices(all_xs[start + i], all_ys[start + i], all_degs[start + i])
-        for i in range(n)
-    ]
+    vertices = [get_tree_vertices(all_xs[start + i], all_ys[start + i], all_degs[start + i]) for i in range(n)]
     side, width, height = get_side_and_dims(vertices)
     score = side * side / n
     print(f"  Group {n:>3}: aspect={aspect:.3f}, score={score:.6f}, side={side:.4f}")

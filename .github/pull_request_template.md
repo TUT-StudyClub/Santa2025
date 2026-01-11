@@ -1,5 +1,5 @@
 ## 変更内容
-- 
+-
 
 ## 再現手順
 - 実行コマンド:
@@ -12,5 +12,4 @@
 ## チェックリスト
 - [ ] `data/`・`outputs/`・`submissions/` をコミットしていない
 - [ ] `docs/experiments.md` に記録した（実験/提出をした場合）
-- [ ] `ruff` / `pytest` が通る（CI）
-
+- [ ] `make check` / `pytest` が通る（CI）

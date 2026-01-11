@@ -96,14 +96,10 @@ def polygon_bounds(vertices: np.ndarray) -> tuple[float, float, float, float]:
     max_y = vertices[0, 1]
     for i in range(1, vertices.shape[0]):
         x, y = vertices[i, 0], vertices[i, 1]
-        if x < min_x:
-            min_x = x
-        if x > max_x:
-            max_x = x
-        if y < min_y:
-            min_y = y
-        if y > max_y:
-            max_y = y
+        min_x = min(min_x, x)
+        max_x = max(max_x, x)
+        min_y = min(min_y, y)
+        max_y = max(max_y, y)
     return min_x, min_y, max_x, max_y
 
 
@@ -122,13 +118,13 @@ def point_in_polygon(px: float, py: float, vertices: np.ndarray) -> bool:
 
 
 @njit(cache=True)
-def segments_intersect(
+def segments_intersect(  # noqa: PLR0913
     p1x: float, p1y: float, p2x: float, p2y: float, p3x: float, p3y: float, p4x: float, p4y: float
 ) -> bool:
     d1x, d1y = p2x - p1x, p2y - p1y
     d2x, d2y = p4x - p3x, p4y - p3y
     det = d1x * d2y - d1y * d2x
-    if abs(det) < 1e-10:
+    if abs(det) < 1e-10:  # noqa: PLR2004
         return False
     t = ((p3x - p1x) * d2y - (p3y - p1y) * d2x) / det
     u = ((p3x - p1x) * d1y - (p3y - p1y) * d1x) / det
@@ -185,14 +181,10 @@ def compute_bounding_box(all_vertices: list[np.ndarray]) -> tuple[float, float, 
     max_x, max_y = -math.inf, -math.inf
     for verts in all_vertices:
         x1, y1, x2, y2 = polygon_bounds(verts)
-        if x1 < min_x:
-            min_x = x1
-        if y1 < min_y:
-            min_y = y1
-        if x2 > max_x:
-            max_x = x2
-        if y2 > max_y:
-            max_y = y2
+        min_x = min(min_x, x1)
+        min_y = min(min_y, y1)
+        max_x = max(max_x, x2)
+        max_y = max(max_y, y2)
     return min_x, min_y, max_x, max_y
 
 
@@ -212,7 +204,7 @@ def calculate_score(all_vertices: list[np.ndarray]) -> float:
 # Small Group Optimization
 # -----------------------------------------------------------------------------
 @njit(cache=True)
-def optimize_small_group_sa(
+def optimize_small_group_sa(  # noqa: PLR0913, PLR0912, PLR0915, N803
     n: int,
     init_xs: np.ndarray,
     init_ys: np.ndarray,
@@ -220,10 +212,10 @@ def optimize_small_group_sa(
     n_iters: int,
     pos_delta: float,
     ang_delta: float,
-    T_max: float,
-    T_min: float,
+    t_max: float,
+    t_min: float,
     random_seed: int,
-) -> tuple[np.ndarray, np.ndarray, np.ndarray, float]:
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, float]:  # noqa: N803
     """
     小さいグループをSAで最適化
     全ての木の位置と角度を同時に最適化
@@ -245,7 +237,7 @@ def optimize_small_group_sa(
             xs[i] = init_xs[i] * spread
             ys[i] = init_ys[i] * spread
         all_vertices = [get_tree_vertices(xs[i], ys[i], degs[i]) for i in range(n)]
-        if spread > 10.0:
+        if spread > 10.0:  # noqa: PLR2004
             break
 
     current_score = calculate_score(all_vertices)
@@ -254,10 +246,10 @@ def optimize_small_group_sa(
     best_ys = ys.copy()
     best_degs = degs.copy()
 
-    T_factor = -math.log(T_max / T_min)
+    t_factor = -math.log(t_max / t_min)  # noqa: N806
 
     for step in range(n_iters):
-        T = T_max * math.exp(T_factor * step / n_iters)
+        temp = t_max * math.exp(t_factor * step / n_iters)  # noqa: N806
         progress = step / n_iters
         decay = 1.0 - 0.8 * progress
         cur_pos_delta = pos_delta * decay
@@ -271,11 +263,11 @@ def optimize_small_group_sa(
         old_y = ys[tree_idx]
         old_deg = degs[tree_idx]
 
-        if move_type == 0 or move_type == 3:
+        if move_type in {0, 3}:
             xs[tree_idx] += (np.random.random() * 2.0 - 1.0) * cur_pos_delta
-        if move_type == 1 or move_type == 3:
+        if move_type in {1, 3}:
             ys[tree_idx] += (np.random.random() * 2.0 - 1.0) * cur_pos_delta
-        if move_type == 2 or move_type == 3:
+        if move_type in {2, 3}:
             delta_ang = (np.random.random() * 2.0 - 1.0) * cur_ang_delta
             degs[tree_idx] = (degs[tree_idx] + delta_ang) % 360.0
 
@@ -304,7 +296,7 @@ def optimize_small_group_sa(
         accept = False
         if delta < 0:
             accept = True
-        elif T > 1e-10 and np.random.random() < math.exp(-delta / T):
+        elif temp > 1e-10 and np.random.random() < math.exp(-delta / temp):  # noqa: PLR2004
             accept = True
 
         if accept:
@@ -348,7 +340,7 @@ def generate_initial_positions(n: int, pattern: int) -> tuple[np.ndarray, np.nda
             ys[i] = radius * math.sin(angle)
             degs[i] = angle * 180.0 / math.pi
 
-    elif pattern == 2:  # 交互角度のグリッド
+    elif pattern == 2:  # 交互角度のグリッド  # noqa: PLR2004
         cols = int(math.ceil(math.sqrt(n)))
         for i in range(n):
             xs[i] = (i % cols) * 0.75
@@ -365,16 +357,16 @@ def generate_initial_positions(n: int, pattern: int) -> tuple[np.ndarray, np.nda
 
 
 @njit(cache=True)
-def optimize_group_multistart(
+def optimize_group_multistart(  # noqa: PLR0913
     n: int,
     n_iters: int,
     pos_delta: float,
     ang_delta: float,
-    T_max: float,
-    T_min: float,
+    t_max: float,
+    t_min: float,
     n_restarts: int,
     random_seed: int,
-) -> tuple[np.ndarray, np.ndarray, np.ndarray, float]:
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, float]:  # noqa: N803
     """
     複数の初期配置から最適化を開始し、最良結果を返す
     """
@@ -389,7 +381,7 @@ def optimize_group_multistart(
 
         seed = random_seed + restart * 1000
         xs, ys, degs, score = optimize_small_group_sa(
-            n, init_xs, init_ys, init_degs, n_iters, pos_delta, ang_delta, T_max, T_min, seed
+            n, init_xs, init_ys, init_degs, n_iters, pos_delta, ang_delta, t_max, t_min, seed
         )
 
         if score < best_score:
@@ -420,9 +412,7 @@ def load_submission_data(filepath: str) -> tuple[np.ndarray, np.ndarray, np.ndar
     return np.array(all_xs), np.array(all_ys), np.array(all_degs)
 
 
-def save_submission(
-    filepath: str, all_xs: np.ndarray, all_ys: np.ndarray, all_degs: np.ndarray
-) -> None:
+def save_submission(filepath: str, all_xs: np.ndarray, all_ys: np.ndarray, all_degs: np.ndarray) -> None:
     rows = []
     idx = 0
     for n in range(1, 201):
@@ -443,10 +433,7 @@ def calculate_total_score(all_xs: np.ndarray, all_ys: np.ndarray, all_degs: np.n
     total = 0.0
     for n in range(1, 201):
         start = n * (n - 1) // 2
-        vertices = [
-            get_tree_vertices(all_xs[start + i], all_ys[start + i], all_degs[start + i])
-            for i in range(n)
-        ]
+        vertices = [get_tree_vertices(all_xs[start + i], all_ys[start + i], all_degs[start + i]) for i in range(n)]
         total += calculate_score(vertices)
     return total
 
@@ -474,8 +461,8 @@ if __name__ == "__main__":
     n_iters = int(opt_cfg["n_iters"])
     pos_delta = float(opt_cfg["pos_delta"])
     ang_delta = float(opt_cfg["ang_delta"])
-    T_max = float(opt_cfg["T_max"])
-    T_min = float(opt_cfg["T_min"])
+    t_max = float(opt_cfg["T_max"])
+    t_min = float(opt_cfg["T_min"])
     n_restarts = int(opt_cfg["n_restarts"])
     seed_base = int(opt_cfg.get("seed_base", 42))
 
@@ -494,16 +481,13 @@ if __name__ == "__main__":
         start = n * (n - 1) // 2
 
         # 現在のスコア
-        orig_verts = [
-            get_tree_vertices(new_xs[start + i], new_ys[start + i], new_degs[start + i])
-            for i in range(n)
-        ]
+        orig_verts = [get_tree_vertices(new_xs[start + i], new_ys[start + i], new_degs[start + i]) for i in range(n)]
         orig_score = calculate_score(orig_verts)
 
         # 最適化
         seed = seed_base + n * 10000
         opt_xs, opt_ys, opt_degs, opt_score = optimize_group_multistart(
-            n, n_iters, pos_delta, ang_delta, T_max, T_min, n_restarts, seed
+            n, n_iters, pos_delta, ang_delta, t_max, t_min, n_restarts, seed
         )
 
         # ベースラインの配置も試す
@@ -512,7 +496,7 @@ if __name__ == "__main__":
         base_degs = new_degs[start : start + n].copy()
 
         _, _, _, base_opt_score = optimize_small_group_sa(
-            n, base_xs, base_ys, base_degs, n_iters, pos_delta, ang_delta, T_max, T_min, seed + 5000
+            n, base_xs, base_ys, base_degs, n_iters, pos_delta, ang_delta, t_max, t_min, seed + 5000
         )
 
         # より良い方を選択

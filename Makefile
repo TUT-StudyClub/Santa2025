@@ -1,12 +1,11 @@
-.PHONY: help venv sync fmt lint test clean notebook exp uv-exp submit log-exp docker-build docker-bash docker-jupyter docker-down
+.PHONY: help venv sync fmt lint type check import-lint test clean notebook exp uv-exp submit log-exp docker-build docker-bash docker-jupyter docker-down
 
 help:
 	@echo "make venv      - create .venv and install deps"
 	@echo "make sync      - install deps with uv (recommended)"
-	@echo "make fmt       - format (ruff)"
-	@echo "make lint      - lint (ruff)"
+	@echo "make check     - run all checks (ruff lint & format, ty, import-linter)"
 	@echo "make test      - run tests (pytest)"
-	@echo "make notebook  - start jupyter lab"
+	@echo "make notebook  - start marimo editor"
 	@echo "make exp EXP=000 CFG=000 - run experiment (requires env active)"
 	@echo "make uv-exp EXP=000 CFG=000 - run experiment via uv"
 	@echo "make submit EXP=000 CFG=000 [COMP=santa-2025] [MSG=...] [SUB_FILE=...] - submit latest"
@@ -26,17 +25,32 @@ venv:
 sync:
 	uv sync --dev
 
+# Shortcuts
 fmt:
-	ruff format .
+	uv run ruff check --select I --fix .
+	uv run ruff format .
 
 lint:
-	ruff check .
+	uv run ruff check .
+
+type:
+	uv run ty check .
+
+import-lint:
+	uv run lint-imports
+
+# Aggregated check (User requested style)
+check:
+	uv run ruff check .
+	uv run ruff format .
+	uv run ty check .
+	uv run lint-imports
 
 test:
-	pytest -q
+	uv run pytest
 
 notebook:
-	jupyter lab
+	uv run marimo edit
 
 EXP ?= 000
 CFG ?= 000
@@ -74,22 +88,22 @@ log-exp:
 	import json
 	import os
 	from pathlib import Path
-	
+
 	run_dir = Path(os.environ["RUN_DIR"])
 	log_file = Path(os.environ["LOG_FILE"])
 	author = os.environ.get("AUTHOR", "-")
 	exp_name = os.environ.get("EXP_NAME", "").strip()
 	log_cmd = os.environ.get("LOG_CMD", "-")
-	
+
 	metrics_path = run_dir / "metrics.json"
 	if not metrics_path.exists():
 	    raise SystemExit(f"metrics not found: {metrics_path}")
 	metrics = json.loads(metrics_path.read_text())
-	
+
 	score = metrics.get("score")
 	note = (metrics.get("note") or "").strip()
 	n_trees = metrics.get("n_trees")
-	
+
 	seed = "-"
 	cfg_path = run_dir / "config_exp.yaml"
 	if cfg_path.exists():
@@ -98,27 +112,27 @@ log-exp:
 	        if line.startswith("seed:"):
 	            seed = line.split(":", 1)[1].strip() or "-"
 	            break
-	
+
 	date = datetime.date.today().isoformat()
 	change = exp_name if exp_name else "-"
 	if note:
 	    change = f"{change} {note}".strip()
-	
+
 	cv = "-"
 	if isinstance(score, (int, float)):
 	    cv = f"score={score:.4f}"
-	
+
 	note_col = "metrics.json"
 	if n_trees is not None:
 	    note_col = f"n={n_trees}, metrics.json"
-	
+
 	row = f"| {date} | {author} | - | {change} | {seed} | {cv} | - | `{log_cmd}` | {note_col} |"
-	
+
 	lines = log_file.read_text().splitlines()
 	if row in lines:
 	    print("log entry already exists")
 	    raise SystemExit(0)
-	
+
 	insert_at = None
 	for i, line in enumerate(lines):
 	    if line.startswith("| --- |"):
@@ -126,7 +140,7 @@ log-exp:
 	        break
 	if insert_at is None:
 	    raise SystemExit("table header not found in experiments.md")
-	
+
 	lines.insert(insert_at, row)
 	log_file.write_text("\n".join(lines) + "\n")
 	print(f"added log entry: {row}")

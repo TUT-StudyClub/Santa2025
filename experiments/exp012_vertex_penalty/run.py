@@ -1,8 +1,9 @@
 """
-exp011_dense_pack: より密なパッキングを探索
+exp012_vertex_penalty: 頂点ペナルティ法を用いた密配置最適化
 
-木の形状を考慮し、互い違いの配置や異なる角度の組み合わせで
-より密なパッキングを実現する。
+「『重なったら即アウト』という厳しいルールを一時的にやめて、
+『重なった分だけ罰点』という緩いルールで無理やり詰め込む手法」
+
 """
 
 import math
@@ -24,7 +25,7 @@ def resolve_config_path() -> str:
     for arg in sys.argv[1:]:
         if arg.startswith("exp="):
             config_name = arg.split("=", 1)[1]
-    return os.path.join("experiments", "exp011_dense_pack", "exp", f"{config_name}.yaml")
+    return os.path.join("experiments", "exp012_vertex_penalty", "exp", f"{config_name}.yaml")
 
 
 CONFIG_PATH = resolve_config_path()
@@ -95,10 +96,10 @@ def polygon_bounds(vertices: np.ndarray) -> tuple[float, float, float, float]:
     max_x, max_y = vertices[0, 0], vertices[0, 1]
     for i in range(1, vertices.shape[0]):
         x, y = vertices[i, 0], vertices[i, 1]
-        min_x = min(min_x, x)
-        max_x = max(max_x, x)
-        min_y = min(min_y, y)
-        max_y = max(max_y, y)
+        min_x = min(x, min_x)
+        max_x = max(x, max_x)
+        min_y = min(y, min_y)
+        max_y = max(y, max_y)
     return min_x, min_y, max_x, max_y
 
 
@@ -117,13 +118,13 @@ def point_in_polygon(px: float, py: float, vertices: np.ndarray) -> bool:
 
 
 @njit(cache=True, fastmath=True)
-def segments_intersect(  # noqa: PLR0913
+def segments_intersect(
     p1x: float, p1y: float, p2x: float, p2y: float, p3x: float, p3y: float, p4x: float, p4y: float
 ) -> bool:
     d1x, d1y = p2x - p1x, p2y - p1y
     d2x, d2y = p4x - p3x, p4y - p3y
     det = d1x * d2y - d1y * d2x
-    if abs(det) < 1e-10:  # noqa: PLR2004
+    if abs(det) < 1e-10:
         return False
     t = ((p3x - p1x) * d2y - (p3y - p1y) * d2x) / det
     u = ((p3x - p1x) * d1y - (p3y - p1y) * d1x) / det
@@ -186,10 +187,10 @@ def compute_bounding_box(all_vertices: list[np.ndarray]) -> tuple[float, float, 
     max_x, max_y = -math.inf, -math.inf
     for verts in all_vertices:
         x1, y1, x2, y2 = polygon_bounds(verts)
-        min_x = min(min_x, x1)
-        min_y = min(min_y, y1)
-        max_x = max(max_x, x2)
-        max_y = max(max_y, y2)
+        min_x = min(x1, min_x)
+        min_y = min(y1, min_y)
+        max_x = max(x2, max_x)
+        max_y = max(y2, max_y)
     return min_x, min_y, max_x, max_y
 
 
@@ -299,15 +300,15 @@ def generate_diagonal_pattern(
 
 
 @njit(cache=True)
-def optimize_pattern_sa(  # noqa: PLR0913, PLR0912, PLR0915, N803
+def optimize_pattern_sa(  # noqa: PLR0915
     init_xs: np.ndarray,
     init_ys: np.ndarray,
     init_degs: np.ndarray,
     n_iters: int,
     pos_delta: float,
     ang_delta: float,
-    t_max: float,
-    t_min: float,
+    t_max: float,  # T_max -> t_max
+    t_min: float,  # T_min -> t_min
     random_seed: int,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray, float]:
     """SA最適化"""
@@ -322,7 +323,7 @@ def optimize_pattern_sa(  # noqa: PLR0913, PLR0912, PLR0915, N803
 
     # 重なりを解消
     spread = 1.0
-    while has_any_overlap(all_vertices) and spread < 5.0:  # noqa: PLR2004
+    while has_any_overlap(all_vertices) and spread < 5.0:
         spread *= 1.1
         for i in range(n):
             xs[i] = init_xs[i] * spread
@@ -338,10 +339,12 @@ def optimize_pattern_sa(  # noqa: PLR0913, PLR0912, PLR0915, N803
     best_ys = ys.copy()
     best_degs = degs.copy()
 
+    # T_factor -> t_factor
     t_factor = -math.log(t_max / t_min)
 
     for step in range(n_iters):
-        temp = t_max * math.exp(t_factor * step / n_iters)
+        # T -> current_t
+        current_t = t_max * math.exp(t_factor * step / n_iters)
         decay = 1.0 - 0.8 * (step / n_iters)
         cur_pos = pos_delta * decay
         cur_ang = ang_delta * decay
@@ -351,11 +354,12 @@ def optimize_pattern_sa(  # noqa: PLR0913, PLR0912, PLR0915, N803
 
         old_x, old_y, old_deg = xs[tree_idx], ys[tree_idx], degs[tree_idx]
 
-        if move_type in {0, 3}:
+        # if A or B -> if A in (0, 1)
+        if move_type in (0, 3):
             xs[tree_idx] += (np.random.random() * 2.0 - 1.0) * cur_pos
-        if move_type in {1, 3}:
+        if move_type in (1, 3):
             ys[tree_idx] += (np.random.random() * 2.0 - 1.0) * cur_pos
-        if move_type in {2, 3}:
+        if move_type in (2, 3):
             degs[tree_idx] = (degs[tree_idx] + (np.random.random() * 2.0 - 1.0) * cur_ang) % 360.0
 
         new_verts = get_tree_vertices(xs[tree_idx], ys[tree_idx], degs[tree_idx])
@@ -374,7 +378,8 @@ def optimize_pattern_sa(  # noqa: PLR0913, PLR0912, PLR0915, N803
         new_score = calculate_score(all_vertices)
         delta = new_score - current_score
 
-        if delta < 0 or (temp > 1e-10 and np.random.random() < math.exp(-delta / temp)):  # noqa: PLR2004
+        # T -> current_t
+        if delta < 0 or (current_t > 1e-10 and np.random.random() < math.exp(-delta / current_t)):
             current_score = new_score
             if new_score < best_score:
                 best_score = new_score
@@ -433,12 +438,114 @@ def calculate_total_score(all_xs: np.ndarray, all_ys: np.ndarray, all_degs: np.n
     return total
 
 
+@njit(cache=True, fastmath=True)
+def count_overlap_penalty(all_vertices: list[np.ndarray]) -> int:
+    """
+    重なりエネルギー（ペナルティ）を計算する。
+    単純なBooleanではなく、「いくつの頂点が他人の内部に入り込んでいるか」を返す。
+    値が大きいほど激しく重なっている状態。0なら重なりなし。
+    """
+    penalty = 0
+    n = len(all_vertices)
+
+    # 全ペア総当たり
+    for i in range(n):
+        for j in range(n):
+            if i == j:
+                continue
+
+            # バウンディングボックスで高速化
+            min_x1, min_y1, max_x1, max_y1 = polygon_bounds(all_vertices[i])
+            min_x2, min_y2, max_x2, max_y2 = polygon_bounds(all_vertices[j])
+
+            if max_x1 < min_x2 or max_x2 < min_x1 or max_y1 < min_y1 or max_y2 < min_y1:
+                continue
+
+            # 頂点包括チェック
+            verts_i = all_vertices[i]
+            verts_j = all_vertices[j]
+
+            for k in range(verts_i.shape[0]):
+                if point_in_polygon(verts_i[k, 0], verts_i[k, 1], verts_j):
+                    penalty += 1
+
+    return penalty
+
+
+@njit(cache=True, fastmath=True)
+def optimize_overlap_resolution(
+    init_xs: np.ndarray,
+    init_ys: np.ndarray,
+    init_degs: np.ndarray,
+    target_scale: float,  # 圧縮率（例: 0.98）
+    n_iters: int,
+    pos_delta: float,
+    ang_delta: float,
+    seed: int,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, bool]:
+    """
+    物理ベースの重なり解消（Squeeze & Resolve）
+    戻り値の bool は「重なりを完全に解消できたか(True/False)」
+    """
+    np.random.seed(seed)
+    n = len(init_xs)
+
+    # 強制圧縮
+    cx = np.mean(init_xs)
+    cy = np.mean(init_ys)
+
+    xs = (init_xs - cx) * target_scale + cx
+    ys = (init_ys - cy) + target_scale + cy
+    degs = init_degs.copy()
+
+    # 現在の頂点を計算
+    all_vertices = [get_tree_vertices(xs[i], ys[i], degs[i]) for i in range(n)]
+
+    # 現在のペナルティを計算
+    current_penalty = count_overlap_penalty(all_vertices)
+
+    if current_penalty == 0:
+        return xs, ys, degs, True
+
+    # Resolve Loop(ペナルティの増える移動を受容しない)
+    for _ in range(n_iters):
+        if current_penalty == 0:
+            return xs, ys, degs, True
+
+        idx = np.random.randint(0, n)
+        old_x, old_y, old_deg = xs[idx], ys[idx], degs[idx]
+        old_verts = all_vertices[idx]
+
+        # 移動
+        move_type = np.random.randint(0, 3)
+        if move_type == 0:
+            xs[idx] += (np.random.random() * 2.0 - 1.0) * pos_delta
+        elif move_type == 1:
+            ys[idx] += (np.random.random() * 2.0 - 1.0) * pos_delta
+        else:
+            degs[idx] = (degs[idx] + (np.random.random() * 2.0 - 1.0) * ang_delta) % 360.0
+
+        # 部分更新後の頂点
+        new_verts_i = get_tree_vertices(xs[idx], ys[idx], degs[idx])
+
+        all_vertices[idx] = new_verts_i
+        new_penalty = count_overlap_penalty(all_vertices)
+
+        if new_penalty < current_penalty:
+            current_penalty = new_penalty
+        else:
+            xs[idx], ys[idx], degs[idx] = old_x, old_y, old_deg
+            all_vertices[idx] = old_verts
+
+    final_penalty = count_overlap_penalty(all_vertices)
+    return xs, ys, degs, final_penalty == 0
+
+
 # -----------------------------------------------------------------------------
 # Main
 # -----------------------------------------------------------------------------
 if __name__ == "__main__":
-    # 設定とベースラインの読み込み（省略なし、ロジック部分は変更なし）
-    print("Dense Packing Optimizer (exp011_dense_pack)")
+    print("Dense Packing Optimizer (Screening + Final + Physics Squeeze)")
     print(f"Config: {CONFIG_PATH}")
 
     baseline_path = CONFIG["paths"]["baseline"]
@@ -446,80 +553,75 @@ if __name__ == "__main__":
     baseline_total = calculate_total_score(all_xs, all_ys, all_degs)
     print(f"Baseline total score: {baseline_total:.6f}")
 
-    # 最適化パラメータの展開
     opt_cfg = CONFIG["optimization"]
     n_min = int(opt_cfg["n_min"])
     n_max = int(opt_cfg["n_max"])
     n_iters = int(opt_cfg["n_iters"])
     pos_delta = float(opt_cfg["pos_delta"])
     ang_delta = float(opt_cfg["ang_delta"])
-    t_max = float(opt_cfg["T_max"])
-    t_min = float(opt_cfg["T_min"])
+    T_max = float(opt_cfg["T_max"])
+    T_min = float(opt_cfg["T_min"])
     seed_base = int(opt_cfg.get("seed_base", 42))
 
-    # Two-stage Optimizationの設定
-    # Screening: 探索空間を広げるため、計算コストを抑えて構造の有望度のみを判定
-    screening_iters = 2000
-    # Final: 有望な解に対して十分なステップ数を割り当て、局所解の探索を行う
-    final_iters = n_iters
+    # Two-stage Optimization Parameters
+    screening_iters = 2000  # 高速に形状の良し悪しを判定
+    final_iters = n_iters  # 十分な時間をかけて最適化
+
+    # Physics Squeeze Parameters
+    physics_iters = 50000  # 物理演算の試行回数
+    physics_ratios = [0.90, 0.93, 0.95, 0.97, 0.98, 0.99]  # 圧縮率の候補
 
     print(f"\nOptimizing groups {n_min} to {n_max}...")
-    print(f"  Screening iters: {screening_iters}, Final iters: {final_iters}")
 
     new_xs = all_xs.copy()
     new_ys = all_ys.copy()
     new_degs = all_degs.copy()
-
-    total_improved = 0.0
     improved_groups = 0
+    total_improved = 0.0
 
-    # ハイパーパラメータ探索グリッド
+    # Grid Search Parameters
     spacings = [0.65, 0.70, 0.75, 0.80]
     angles = [0.0, 45.0, 90.0, 135.0]
 
     for n in tqdm(range(n_min, n_max + 1), desc="Optimizing"):
-        # N個の要素を持つ群の開始インデックスを算出 (等差数列の和: Sum(1..n-1))
-        # データ構造がフラットである前提に基づく
+        # データインデックスの計算（N=1からの累積和）
         start_idx = n * (n - 1) // 2
 
-        # ベースライン(現状)のスコア算出
+        # 現在のベースラインスコア
         orig_verts = [
             get_tree_vertices(new_xs[start_idx + i], new_ys[start_idx + i], new_degs[start_idx + i]) for i in range(n)
         ]
         orig_score = calculate_score(orig_verts)
 
-        # 最適化候補の初期化
+        # ---------------------------------------------------------
+        # Phase 1: Screening (予選)
+        # ---------------------------------------------------------
         best_candidate_params = None
         best_candidate_score = math.inf
 
-        # アスペクト比探索範囲の決定
-        # 理想的な正方形配置(sqrt(n))周辺の列数を探索し、バウンディングボックスの無駄を最小化する
+        # アスペクト比探索：正方形(sqrt(n))周辺の列数を重点的に探索
         base_cols = int(math.ceil(math.sqrt(n)))
-        # Nが小さい場合は狭く、大きい場合は広く探索範囲を取るヒューリスティック
         col_search_range = range(max(1, base_cols - 2), base_cols + 4)
 
-        # --- Phase 1: Screening (広範な探索) ---
         for spacing in spacings:
             for angle in angles:
                 for n_cols in col_search_range:
-                    # シード値をパラメータごとに分離し、再現性を確保
                     seed = seed_base + n * 1000 + int(spacing * 100) + int(angle) + n_cols
-
                     candidates = []
 
-                    # パターンA: Interlocking (互い違い配置)
-                    # generator関数は fixed_cols 引数を受け取るように修正済みであることを前提とする
+                    # Pattern A: Interlocking
+                    # ※generate関数には fixed_cols 引数が必要
                     xs1, ys1, degs1 = generate_interlocking_pattern(n, spacing, angle, n_cols)
                     if len(xs1) == n:
                         candidates.append((xs1, ys1, degs1))
 
-                    # パターンB: Hexagonal (六角形配置)
+                    # Pattern B: Hexagonal
                     xs2, ys2, degs2 = generate_hexagonal_pattern(n, spacing, angle, n_cols)
                     if len(xs2) == n:
                         candidates.append((xs2, ys2, degs2))
 
-                    # 各候補に対して軽量なSAを実行
                     for c_xs, c_ys, c_degs in candidates:
+                        # 短時間実行で有望度を判定
                         _, _, _, score = optimize_pattern_sa(
                             c_xs,
                             c_ys,
@@ -527,28 +629,27 @@ if __name__ == "__main__":
                             screening_iters,
                             pos_delta,
                             ang_delta,
-                            t_max,
-                            t_min,
+                            T_max,
+                            T_min,
                             seed,
                         )
-
-                        # 暫定ベストの更新
                         if score < best_candidate_score:
                             best_candidate_score = score
                             best_candidate_params = (c_xs, c_ys, c_degs, seed)
 
-        # --- Phase 2: Final Optimization (局所解の精査) ---
+        # ---------------------------------------------------------
+        # Phase 2: Final Optimization (決勝)
+        # ---------------------------------------------------------
         best_score = orig_score
 
-        # 作業用バッファ（スライス参照ではなくコピーを作成して操作）
+        # 作業用バッファ
         best_xs_group = new_xs[start_idx : start_idx + n].copy()
         best_ys_group = new_ys[start_idx : start_idx + n].copy()
         best_degs_group = new_degs[start_idx : start_idx + n].copy()
 
-        # Screening勝者の本番最適化
+        # 予選勝者の本番実行
         if best_candidate_params is not None:
             init_xs, init_ys, init_degs, best_seed = best_candidate_params
-
             opt_xs, opt_ys, opt_degs, score = optimize_pattern_sa(
                 init_xs,
                 init_ys,
@@ -556,19 +657,17 @@ if __name__ == "__main__":
                 final_iters,
                 pos_delta,
                 ang_delta,
-                t_max,
-                t_min,
+                T_max,
+                T_min,
                 best_seed,
             )
-
             if score < best_score:
                 best_score = score
                 best_xs_group[:] = opt_xs[:]
                 best_ys_group[:] = opt_ys[:]
                 best_degs_group[:] = opt_degs[:]
 
-        # 既存配置(Baseline)からの摂動による最適化も並行して実施
-        # 完全にランダムな再配置よりも、既存の良解を微修正する方が有利な場合があるため
+        # 既存配置からの微修正も並行して実施
         base_xs = new_xs[start_idx : start_idx + n].copy()
         base_ys = new_ys[start_idx : start_idx + n].copy()
         base_degs = new_degs[start_idx : start_idx + n].copy()
@@ -580,35 +679,68 @@ if __name__ == "__main__":
             final_iters,
             pos_delta,
             ang_delta,
-            t_max,
-            t_min,
+            T_max,
+            T_min,
             seed_base + n * 9999,
         )
-
         if score < best_score:
             best_score = score
             best_xs_group[:] = opt_xs[:]
             best_ys_group[:] = opt_ys[:]
             best_degs_group[:] = opt_degs[:]
 
-        # --- Result Update (Greedy Strategy) ---
-        # 浮動小数点の誤差を考慮し、有意な改善（1e-9以上）があった場合のみ更新
+        # ---------------------------------------------------------
+        # Phase 3: Physics Squeeze (物理ベース重なり解消)
+        # ---------------------------------------------------------
+        # ここまでのベスト解をさらに強制圧縮して、壁抜けを試みる
+        current_best_xs = best_xs_group.copy()
+        current_best_ys = best_ys_group.copy()
+        current_best_degs = best_degs_group.copy()
+
+        for ratio in physics_ratios:
+            sq_xs, sq_ys, sq_degs, success = optimize_overlap_resolution(
+                current_best_xs,
+                current_best_ys,
+                current_best_degs,
+                target_scale=ratio,
+                n_iters=physics_iters,
+                pos_delta=0.05,
+                ang_delta=5.0,
+                seed=seed_base + n * 777,
+            )
+
+            if success:
+                # 圧縮成功時のみスコア計算（重い計算を避けるため）
+                sq_verts = [get_tree_vertices(sq_xs[i], sq_ys[i], sq_degs[i]) for i in range(n)]
+                sq_score = calculate_score(sq_verts)
+
+                if sq_score < best_score:
+                    # Physicsで記録更新
+                    best_score = sq_score
+                    best_xs_group[:] = sq_xs[:]
+                    best_ys_group[:] = sq_ys[:]
+                    best_degs_group[:] = sq_degs[:]
+                    # さらに深い圧縮を試すためにループを継続するか、
+                    # ここでbreakするかは戦略次第（今回は全探索）
+
+        # ---------------------------------------------------------
+        # Result Update
+        # ---------------------------------------------------------
         if best_score < orig_score - 1e-9:
             improvement = orig_score - best_score
             total_improved += improvement
             improved_groups += 1
 
-            # 全体配列への書き戻し
             new_xs[start_idx : start_idx + n] = best_xs_group
             new_ys[start_idx : start_idx + n] = best_ys_group
             new_degs[start_idx : start_idx + n] = best_degs_group
 
             print(f"  Group {n}: {orig_score:.6f} -> {best_score:.6f} (improved {improvement:.6f})")
 
-    # 最終結果の集計と保存
+    # 最終集計と保存
     final_score = calculate_total_score(new_xs, new_ys, new_degs)
 
-    print("\noptimization summary")
+    print("\nOptimization Summary")
     print(f"  Baseline total:    {baseline_total:.6f}")
     print(f"  After optimization: {final_score:.6f}")
     print(f"  Total improvement: {baseline_total - final_score:+.6f}")
