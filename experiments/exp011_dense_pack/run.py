@@ -473,7 +473,9 @@ if __name__ == "__main__":
     # Screening: 探索空間を広げるため、計算コストを抑えて構造の有望度のみを判定
     print(f"\nOptimizing groups {n_min} to {n_max}...")
     print(f"  Screening iters: {screening_iters}, Final iters: {final_iters}")
-    print(f"  Baseline restarts: {baseline_restarts} (jitter_xy={baseline_jitter_xy}, jitter_deg={baseline_jitter_deg})")
+    print(
+        f"  Baseline restarts: {baseline_restarts} (jitter_xy={baseline_jitter_xy}, jitter_deg={baseline_jitter_deg})"
+    )
 
     new_xs = all_xs.copy()
     new_ys = all_ys.copy()
@@ -648,9 +650,8 @@ if __name__ == "__main__":
             print(f"submissionを更新しました: {out_path}")
         else:
             print("submissionより改善なしのため上書きしません")
+    elif baseline_improved:
+        save_submission(out_path, new_xs, new_ys, new_degs)
+        print(f"submissionを作成しました: {out_path}")
     else:
-        if baseline_improved:
-            save_submission(out_path, new_xs, new_ys, new_degs)
-            print(f"submissionを作成しました: {out_path}")
-        else:
-            print("Baselineから改善なしのためsubmissionを作成しません")
+        print("Baselineから改善なしのためsubmissionを作成しません")

@@ -560,9 +560,8 @@ if __name__ == "__main__":
             print(f"submissionを更新しました: {out_path}")
         else:
             print("submissionより改善なしのため上書きしません")
+    elif baseline_improved:
+        save_submission(out_path, new_xs, new_ys, new_degs)
+        print(f"submissionを作成しました: {out_path}")
     else:
-        if baseline_improved:
-            save_submission(out_path, new_xs, new_ys, new_degs)
-            print(f"submissionを作成しました: {out_path}")
-        else:
-            print("Baselineから改善なしのためsubmissionを作成しません")
+        print("Baselineから改善なしのためsubmissionを作成しません")

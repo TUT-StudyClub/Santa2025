@@ -1411,9 +1411,7 @@ if __name__ == "__main__":
 
         grid_configs = sorted(
             list(set(grid_configs)),
-            key=lambda x: (
-                n_seeds * x[0] * x[1] + (x[1] if x[2] else 0) + (x[0] if x[3] else 0)
-            ),
+            key=lambda x: (n_seeds * x[0] * x[1] + (x[1] if x[2] else 0) + (x[0] if x[3] else 0)),
         )
         print(f"Generated {len(grid_configs)} grid configurations (target n={n_min}-{n_max})")
 

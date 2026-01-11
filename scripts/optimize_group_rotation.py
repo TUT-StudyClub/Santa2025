@@ -168,9 +168,7 @@ def main() -> None:
         raise FileNotFoundError(f"入力CSVが見つかりません: {input_path}")
 
     df = pd.read_csv(input_path)
-    new_df, before_scores, after_scores = optimize_rotation(
-        df, args.coarse_step, args.fine_step, args.fine_window
-    )
+    new_df, before_scores, after_scores = optimize_rotation(df, args.coarse_step, args.fine_step, args.fine_window)
 
     print_summary("回転前スコア", before_scores)
     print_summary("回転後スコア", after_scores)
