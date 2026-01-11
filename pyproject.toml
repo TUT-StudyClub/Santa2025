@@ -82,4 +82,3 @@ testpaths = ["tests"]
 
 [tool.importlinter]
 root_package = "santa2025"
-
