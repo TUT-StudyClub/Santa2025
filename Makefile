@@ -75,7 +75,6 @@ uv-exp:
 	uv run python "$(EXP_DIR)/run.py" exp="$(CFG)"
 
 submit:
-	@test -n "$(EXP_DIR)" || (echo "experiment not found: exp$(EXP)_*" && exit 1)
 	@test -f "$(SUB_PATH)" || (echo "submission not found: $(SUB_PATH)" && exit 1)
 	kaggle competitions submit -c "$(COMP)" -f "$(SUB_PATH)" -m "$(MSG)"
 
