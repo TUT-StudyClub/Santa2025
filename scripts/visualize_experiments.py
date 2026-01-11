@@ -3,6 +3,7 @@ import math
 import re
 from dataclasses import dataclass
 from pathlib import Path
+from typing import cast
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -182,9 +183,7 @@ def parse_experiments_markdown(
     if header_index is None:
         raise ValueError("experiments.md のテーブルが見つかりません。")
 
-    submission_names = sorted(
-        {p.name for p in submissions_dir.rglob("*.csv")}, key=len, reverse=True
-    )
+    submission_names = cast(list[str], sorted({p.name for p in submissions_dir.rglob("*.csv")}, key=len, reverse=True))
 
     rows = []
     row_index = 0
@@ -194,7 +193,7 @@ def parse_experiments_markdown(
         cells = [c.strip() for c in line.strip().strip("|").split("|")]
         if len(cells) < len(TABLE_COLUMNS):
             continue
-        data = dict(zip(TABLE_COLUMNS, cells))
+        data = dict(zip(TABLE_COLUMNS, cells, strict=False))
         lb_score = extract_score(data["LB"])
         cv_score = extract_score(data["CV"])
         score = lb_score if lb_score is not None else cv_score
@@ -367,9 +366,10 @@ def plot_scores(df: pd.DataFrame, output_path: Path) -> None:
 def parse_submission_values(series: pd.Series) -> np.ndarray:
     values = []
     for value in series:
-        if isinstance(value, str):
-            value = value[1:] if value.startswith("s") else value
-        values.append(float(value))
+        v = value
+        if isinstance(v, str):
+            v = v[1:] if v.startswith("s") else v
+        values.append(float(v))
     return np.array(values, dtype=np.float64)
 
 
@@ -387,7 +387,7 @@ def calculate_total_score_from_df(df: pd.DataFrame) -> float:
         xs = parse_submission_values(group_df["x"])
         ys = parse_submission_values(group_df["y"])
         degs = parse_submission_values(group_df["deg"])
-        polygons = [build_tree_vertices(x, y, deg) for x, y, deg in zip(xs, ys, degs)]
+        polygons = [build_tree_vertices(x, y, deg) for x, y, deg in zip(xs, ys, degs, strict=False)]
         side, _ = compute_side_and_bounds(polygons)
         total += side * side / len(polygons)
     return total
@@ -446,7 +446,7 @@ def compute_bounds_from_center_ranges(
     )
 
 
-def plot_group_layout(
+def plot_group_layout(  # noqa: PLR0913
     submission_path: Path,
     output_path: Path,
     group_id: int,
@@ -475,7 +475,7 @@ def plot_group_layout(
     )
 
 
-def plot_group_layout_from_df(
+def plot_group_layout_from_df(  # noqa: PLR0913, PLR0912, PLR0915
     df: pd.DataFrame,
     output_path: Path,
     group_id: int,
@@ -496,14 +496,14 @@ def plot_group_layout_from_df(
     xs = parse_submission_values(group_df["x"])
     ys = parse_submission_values(group_df["y"])
     degs = parse_submission_values(group_df["deg"])
-    polygons = [build_tree_vertices(x, y, deg) for x, y, deg in zip(xs, ys, degs)]
+    polygons = [build_tree_vertices(x, y, deg) for x, y, deg in zip(xs, ys, degs, strict=False)]
 
     overlaps = set()
     overlap_pairs = []
     try:
-        from shapely.geometry import Polygon
+        from shapely.geometry import Polygon  # noqa: PLC0415
     except ImportError:
-        Polygon = None
+        Polygon = None  # type: ignore  # noqa: N806
         print("shapely が見つからないため、重なり判定をスキップします。")
 
     if Polygon is not None:
@@ -589,7 +589,7 @@ def plot_group_layout_from_df(
     fig.subplots_adjust(top=0.88)
 
     if show_labels:
-        for label, x, y in zip(group_df["id"], xs, ys):
+        for label, x, y in zip(group_df["id"], xs, ys, strict=False):
             ax.text(x, y, label, fontsize=8, ha="center", va="center", color="black")
 
     fig.savefig(output_path, dpi=220)
@@ -661,9 +661,7 @@ def plot_metrics_by_group(df: pd.DataFrame, output_path: Path) -> None:
 
     # 既存の計算結果があるか確認、なければ計算
     # ここでは submission.csv の内容から計算するため、一度全ポリゴンを生成する
-    prefix_set = sorted(
-        list({value.split("_")[0] for value in df["id"] if "_" in value}), key=lambda x: int(x)
-    )
+    prefix_set = sorted(list({value.split("_")[0] for value in df["id"] if "_" in value}), key=lambda x: int(x))
 
     for prefix in prefix_set:
         gid = int(prefix)
@@ -671,7 +669,7 @@ def plot_metrics_by_group(df: pd.DataFrame, output_path: Path) -> None:
         xs = parse_submission_values(group_df["x"])
         ys = parse_submission_values(group_df["y"])
         degs = parse_submission_values(group_df["deg"])
-        polygons = [build_tree_vertices(x, y, deg) for x, y, deg in zip(xs, ys, degs)]
+        polygons = [build_tree_vertices(x, y, deg) for x, y, deg in zip(xs, ys, degs, strict=False)]
 
         side, _ = compute_side_and_bounds(polygons)
         score_contribution = (side * side) / gid
@@ -692,9 +690,7 @@ def plot_metrics_by_group(df: pd.DataFrame, output_path: Path) -> None:
 
     # スコア寄与度の推移
     ax = axes[1]
-    ax.plot(
-        group_ids, scores, marker="o", markersize=3, linestyle="-", linewidth=1, color="#d62728"
-    )
+    ax.plot(group_ids, scores, marker="o", markersize=3, linestyle="-", linewidth=1, color="#d62728")
     ax.set_title("Score Contribution (S^2 / N) vs N")
     ax.set_xlabel("N (Number of Trees)")
     ax.set_ylabel("Score Contribution")
@@ -709,39 +705,20 @@ def ensure_output_dir(path: Path) -> None:
     path.mkdir(parents=True, exist_ok=True)
 
 
-def main() -> None:
+def main() -> None:  # noqa: PLR0915, PLR0912
     parser = argparse.ArgumentParser(description="実験ログと提出ファイルの可視化を行います。")
-    parser.add_argument(
-        "--experiments-path", default="docs/experiments.md", help="experiments.md のパス"
-    )
-    parser.add_argument("--submissions-dir", default="submissions", help="提出ファイルのルート")
-    parser.add_argument("--output-dir", default="outputs/visualizations", help="出力先ディレクトリ")
-    parser.add_argument("--submission-path", default=None, help="ツリー配置図に使う提出ファイル")
-    parser.add_argument("--category-config", default=None, help="カテゴリ分類用の YAML")
-
-
-def main() -> None:
-    parser = argparse.ArgumentParser(description="実験ログと提出ファイルの可視化を行います。")
-    parser.add_argument(
-        "--experiments-path", default="docs/experiments.md", help="experiments.md のパス"
-    )
+    parser.add_argument("--experiments-path", default="docs/experiments.md", help="experiments.md のパス")
     parser.add_argument("--submissions-dir", default="submissions", help="提出ファイルのルート")
     parser.add_argument("--output-dir", default="outputs/visualizations", help="出力先ディレクトリ")
     parser.add_argument("--submission-path", default=None, help="ツリー配置図に使う提出ファイル")
     parser.add_argument("--category-config", default=None, help="カテゴリ分類用の YAML")
     parser.add_argument("--font", default=None, help="日本語フォント名（例: Hiragino Sans）")
-    parser.add_argument(
-        "--skip-scores", action="store_true", help="実験スコア履歴の可視化をスキップ"
-    )
-    parser.add_argument(
-        "--skip-metrics", action="store_true", help="提出ファイルのメトリクス可視化をスキップ"
-    )
+    parser.add_argument("--skip-scores", action="store_true", help="実験スコア履歴の可視化をスキップ")
+    parser.add_argument("--skip-metrics", action="store_true", help="提出ファイルのメトリクス可視化をスキップ")
     parser.add_argument("--group", type=int, default=None, help="特定のグループ番号(1-200)のみ出力")
     parser.add_argument("--group-all", action="store_true", help="全グループの配置図を出力")
     parser.add_argument("--group-labels", action="store_true", help="グループ図にラベルを表示")
-    parser.add_argument(
-        "--group-overlap-eps", type=float, default=1e-8, help="重なり判定の面積閾値"
-    )
+    parser.add_argument("--group-overlap-eps", type=float, default=1e-8, help="重なり判定の面積閾値")
     parser.add_argument(
         "--group-score-mode",
         choices=["total", "group", "both"],
@@ -817,9 +794,7 @@ def main() -> None:
     if args.group is not None:
         target_groups = [args.group]
     elif args.group_all:
-        group_ids = sorted(
-            {int(value.split("_")[0]) for value in sub_df["id"].astype(str) if "_" in value}
-        )
+        group_ids = sorted({int(value.split("_")[0]) for value in sub_df["id"].astype(str) if "_" in value})
         target_groups = group_ids
         print(f"全{len(target_groups)}グループを出力します。時間がかかる場合があります。")
     else:
