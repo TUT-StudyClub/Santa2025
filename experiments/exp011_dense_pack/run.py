@@ -456,15 +456,24 @@ if __name__ == "__main__":
     t_max = float(opt_cfg["T_max"])
     t_min = float(opt_cfg["T_min"])
     seed_base = int(opt_cfg.get("seed_base", 42))
+    screening_iters = int(opt_cfg.get("screening_iters", 2000))
+    final_iters = int(opt_cfg.get("final_iters", n_iters))
+    spacings = opt_cfg.get("spacings", [0.65, 0.70, 0.75, 0.80])
+    angles = opt_cfg.get("angles", [0.0, 45.0, 90.0, 135.0])
+    col_minus = int(opt_cfg.get("col_minus", 2))
+    col_plus = int(opt_cfg.get("col_plus", 4))
+    baseline_restarts = int(opt_cfg.get("baseline_restarts", 1))
+    baseline_jitter_xy = float(opt_cfg.get("baseline_jitter_xy", 0.0))
+    baseline_jitter_deg = float(opt_cfg.get("baseline_jitter_deg", 0.0))
+
+    spacings = [float(s) for s in spacings]
+    angles = [float(a) for a in angles]
 
     # Two-stage Optimizationの設定
     # Screening: 探索空間を広げるため、計算コストを抑えて構造の有望度のみを判定
-    screening_iters = 2000
-    # Final: 有望な解に対して十分なステップ数を割り当て、局所解の探索を行う
-    final_iters = n_iters
-
     print(f"\nOptimizing groups {n_min} to {n_max}...")
     print(f"  Screening iters: {screening_iters}, Final iters: {final_iters}")
+    print(f"  Baseline restarts: {baseline_restarts} (jitter_xy={baseline_jitter_xy}, jitter_deg={baseline_jitter_deg})")
 
     new_xs = all_xs.copy()
     new_ys = all_ys.copy()
@@ -474,8 +483,6 @@ if __name__ == "__main__":
     improved_groups = 0
 
     # ハイパーパラメータ探索グリッド
-    spacings = [0.65, 0.70, 0.75, 0.80]
-    angles = [0.0, 45.0, 90.0, 135.0]
 
     for n in tqdm(range(n_min, n_max + 1), desc="Optimizing"):
         # N個の要素を持つ群の開始インデックスを算出 (等差数列の和: Sum(1..n-1))
@@ -496,7 +503,7 @@ if __name__ == "__main__":
         # 理想的な正方形配置(sqrt(n))周辺の列数を探索し、バウンディングボックスの無駄を最小化する
         base_cols = int(math.ceil(math.sqrt(n)))
         # Nが小さい場合は狭く、大きい場合は広く探索範囲を取るヒューリスティック
-        col_search_range = range(max(1, base_cols - 2), base_cols + 4)
+        col_search_range = range(max(1, base_cols - col_minus), base_cols + col_plus)
 
         # --- Phase 1: Screening (広範な探索) ---
         for spacing in spacings:
@@ -573,23 +580,34 @@ if __name__ == "__main__":
         base_ys = new_ys[start_idx : start_idx + n].copy()
         base_degs = new_degs[start_idx : start_idx + n].copy()
 
-        opt_xs, opt_ys, opt_degs, score = optimize_pattern_sa(
-            base_xs,
-            base_ys,
-            base_degs,
-            final_iters,
-            pos_delta,
-            ang_delta,
-            t_max,
-            t_min,
-            seed_base + n * 9999,
-        )
+        for r in range(max(1, baseline_restarts)):
+            if baseline_jitter_xy > 0.0 or baseline_jitter_deg > 0.0:
+                rng = np.random.default_rng(seed_base + n * 10000 + r)
+                jitter_xs = base_xs + rng.uniform(-baseline_jitter_xy, baseline_jitter_xy, size=n)
+                jitter_ys = base_ys + rng.uniform(-baseline_jitter_xy, baseline_jitter_xy, size=n)
+                jitter_degs = (base_degs + rng.uniform(-baseline_jitter_deg, baseline_jitter_deg, size=n)) % 360.0
+            else:
+                jitter_xs = base_xs
+                jitter_ys = base_ys
+                jitter_degs = base_degs
 
-        if score < best_score:
-            best_score = score
-            best_xs_group[:] = opt_xs[:]
-            best_ys_group[:] = opt_ys[:]
-            best_degs_group[:] = opt_degs[:]
+            opt_xs, opt_ys, opt_degs, score = optimize_pattern_sa(
+                jitter_xs,
+                jitter_ys,
+                jitter_degs,
+                final_iters,
+                pos_delta,
+                ang_delta,
+                t_max,
+                t_min,
+                seed_base + n * 9999 + r,
+            )
+
+            if score < best_score:
+                best_score = score
+                best_xs_group[:] = opt_xs[:]
+                best_ys_group[:] = opt_ys[:]
+                best_degs_group[:] = opt_degs[:]
 
         # --- Result Update (Greedy Strategy) ---
         # 浮動小数点の誤差を考慮し、有意な改善（1e-9以上）があった場合のみ更新
@@ -614,10 +632,25 @@ if __name__ == "__main__":
     print(f"  Total improvement: {baseline_total - final_score:+.6f}")
     print(f"  Improved groups:   {improved_groups}")
 
-    # Always save the latest result regardless of score improvement
-    out_path = CONFIG["paths"]["output"]
-    save_submission(out_path, new_xs, new_ys, new_degs)
-    print(f"Saved to {out_path}")
+    baseline_improved = final_score < baseline_total - 1e-9
+    if baseline_improved:
+        print("Baseline比較: 改善あり")
+    else:
+        print("Baseline比較: 改善なし")
 
-    if final_score >= baseline_total:
-        print("No improvement from baseline")
+    out_path = CONFIG["paths"]["output"]
+    if os.path.exists(out_path):
+        ref_xs, ref_ys, ref_degs = load_submission_data(out_path)
+        ref_score = calculate_total_score(ref_xs, ref_ys, ref_degs)
+        print(f"  既存submissionスコア: {ref_score:.6f}")
+        if final_score < ref_score - 1e-9:
+            save_submission(out_path, new_xs, new_ys, new_degs)
+            print(f"submissionを更新しました: {out_path}")
+        else:
+            print("submissionより改善なしのため上書きしません")
+    else:
+        if baseline_improved:
+            save_submission(out_path, new_xs, new_ys, new_degs)
+            print(f"submissionを作成しました: {out_path}")
+        else:
+            print("Baselineから改善なしのためsubmissionを作成しません")
