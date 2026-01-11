@@ -99,14 +99,10 @@ def polygon_bounds(vertices: np.ndarray) -> tuple[float, float, float, float]:
     for i in range(1, vertices.shape[0]):
         x = vertices[i, 0]
         y = vertices[i, 1]
-        if x < min_x:
-            min_x = x
-        if x > max_x:
-            max_x = x
-        if y < min_y:
-            min_y = y
-        if y > max_y:
-            max_y = y
+        min_x = min(min_x, x)
+        max_x = max(max_x, x)
+        min_y = min(min_y, y)
+        max_y = max(max_y, y)
     return min_x, min_y, max_x, max_y
 
 
@@ -125,7 +121,7 @@ def point_in_polygon(px: float, py: float, vertices: np.ndarray) -> bool:
 
 
 @njit(cache=True)
-def segments_intersect(
+def segments_intersect(  # noqa: PLR0913
     p1x: float, p1y: float, p2x: float, p2y: float, p3x: float, p3y: float, p4x: float, p4y: float
 ) -> bool:
     d1x = p2x - p1x
@@ -133,7 +129,7 @@ def segments_intersect(
     d2x = p4x - p3x
     d2y = p4y - p3y
     det = d1x * d2y - d1y * d2x
-    if abs(det) < 1e-10:
+    if abs(det) < 1e-10:  # noqa: PLR2004
         return False
     t = ((p3x - p1x) * d2y - (p3y - p1y) * d2x) / det
     u = ((p3x - p1x) * d1y - (p3y - p1y) * d1x) / det
@@ -188,14 +184,10 @@ def compute_bounding_box(all_vertices: list[np.ndarray]) -> tuple[float, float, 
     max_y = -math.inf
     for verts in all_vertices:
         x1, y1, x2, y2 = polygon_bounds(verts)
-        if x1 < min_x:
-            min_x = x1
-        if y1 < min_y:
-            min_y = y1
-        if x2 > max_x:
-            max_x = x2
-        if y2 > max_y:
-            max_y = y2
+        min_x = min(min_x, x1)
+        min_y = min(min_y, y1)
+        max_x = max(max_x, x2)
+        max_y = max(max_y, y2)
     return min_x, min_y, max_x, max_y
 
 
@@ -215,7 +207,7 @@ def calculate_score(all_vertices: list[np.ndarray]) -> float:
 # Grid Generation & Optimization
 # -----------------------------------------------------------------------------
 @njit(cache=True)
-def create_grid_vertices(
+def create_grid_vertices(  # noqa: PLR0913
     seed_xs: np.ndarray,
     seed_ys: np.ndarray,
     seed_degs: np.ndarray,
@@ -238,7 +230,7 @@ def create_grid_vertices(
 
 
 @njit(cache=True)
-def sa_optimize_grid(
+def sa_optimize_grid(  # noqa: PLR0913, PLR0912, PLR0915
     seed_xs_init: np.ndarray,
     seed_ys_init: np.ndarray,
     seed_degs_init: np.ndarray,
@@ -246,15 +238,15 @@ def sa_optimize_grid(
     b_init: float,
     ncols: int,
     nrows: int,
-    Tmax: float,
-    Tmin: float,
+    t_max: float,
+    t_min: float,
     nsteps: int,
-    nsteps_per_T: int,
+    nsteps_per_temp: int,
     position_delta: float,
     angle_delta: float,
     delta_t: float,
     random_seed: int,
-) -> tuple[float, np.ndarray, np.ndarray, np.ndarray, float, float]:
+) -> tuple[float, np.ndarray, np.ndarray, np.ndarray, float, float]:  # noqa: PLR0913, PLR0912, PLR0915
     np.random.seed(random_seed)
     n_seeds = len(seed_xs_init)
 
@@ -276,8 +268,8 @@ def sa_optimize_grid(
     best_xs, best_ys, best_degs = seed_xs.copy(), seed_ys.copy(), seed_degs.copy()
     best_a, best_b = a, b
 
-    T = Tmax
-    Tfactor = -math.log(Tmax / Tmin)
+    temp = t_max
+    t_factor = -math.log(t_max / t_min)
     n_move_types = n_seeds + 1
 
     old_x, old_y, old_deg = 0.0, 0.0, 0.0
@@ -289,7 +281,7 @@ def sa_optimize_grid(
         cur_pos_delta = position_delta * decay
         cur_ang_delta = angle_delta * decay
 
-        for _ in range(nsteps_per_T):
+        for _ in range(nsteps_per_temp):
             move_type = np.random.randint(0, n_move_types)
 
             if move_type < n_seeds:
@@ -324,7 +316,7 @@ def sa_optimize_grid(
 
             if delta < 0:
                 accept = True
-            elif T > 1e-10 and np.random.random() < math.exp(-delta / T):
+            elif temp > 1e-10 and np.random.random() < math.exp(-delta / temp):  # noqa: PLR2004
                 accept = True
 
             if accept:
@@ -333,21 +325,20 @@ def sa_optimize_grid(
                     best_score = new_score
                     best_xs, best_ys, best_degs = seed_xs.copy(), seed_ys.copy(), seed_degs.copy()
                     best_a, best_b = a, b
+            elif move_type < n_seeds:
+                seed_xs[move_type] = old_x
+                seed_ys[move_type] = old_y
+                seed_degs[move_type] = old_deg
             else:
-                if move_type < n_seeds:
-                    seed_xs[move_type] = old_x
-                    seed_ys[move_type] = old_y
-                    seed_degs[move_type] = old_deg
-                else:
-                    a, b = old_a, old_b
+                a, b = old_a, old_b
 
-        T = Tmax * math.exp(Tfactor * (step + 1) / nsteps)
+        temp = t_max * math.exp(t_factor * (step + 1) / nsteps)
 
     return best_score, best_xs, best_ys, best_degs, best_a, best_b
 
 
 @njit(cache=True)
-def get_final_positions(
+def get_final_positions(  # noqa: PLR0913
     seed_xs: np.ndarray,
     seed_ys: np.ndarray,
     seed_degs: np.ndarray,
@@ -389,9 +380,7 @@ def deletion_cascade(
 
         # 現在のn-1グループのサイドを計算
         prev_verts = [
-            get_tree_vertices(
-                new_xs[start_prev + i], new_ys[start_prev + i], new_degs[start_prev + i]
-            )
+            get_tree_vertices(new_xs[start_prev + i], new_ys[start_prev + i], new_degs[start_prev + i])
             for i in range(n - 1)
         ]
         best_side = get_side_length(prev_verts)
@@ -481,9 +470,7 @@ def load_submission_data(filepath: str) -> tuple[np.ndarray, np.ndarray, np.ndar
     return np.array(all_xs), np.array(all_ys), np.array(all_degs)
 
 
-def save_submission(
-    filepath: str, all_xs: np.ndarray, all_ys: np.ndarray, all_degs: np.ndarray
-) -> None:
+def save_submission(filepath: str, all_xs: np.ndarray, all_ys: np.ndarray, all_degs: np.ndarray) -> None:
     rows = []
     idx = 0
     for n in range(1, 201):
@@ -504,9 +491,7 @@ def calculate_total_score(all_xs: np.ndarray, all_ys: np.ndarray, all_degs: np.n
     total = 0.0
     idx = 0
     for n in range(1, 201):
-        vertices = [
-            get_tree_vertices(all_xs[idx + i], all_ys[idx + i], all_degs[idx + i]) for i in range(n)
-        ]
+        vertices = [get_tree_vertices(all_xs[idx + i], all_ys[idx + i], all_degs[idx + i]) for i in range(n)]
         total += calculate_score(vertices)
         idx += n
     return total
@@ -574,7 +559,7 @@ if __name__ == "__main__":
         print(f"  Seed {i}: x={x:.4f}, y={y:.4f}, deg={deg:.2f}")
 
     # この結果を使って全グループを最適化するかどうか
-    if best_score < 0.35:  # 良い結果が見つかった場合
+    if best_score < 0.35:  # noqa: PLR2004  # 良い結果が見つかった場合
         print("\nGood seed configuration found! Use this for full optimization.")
         print("Suggested initial_state:")
         print("  seeds:")

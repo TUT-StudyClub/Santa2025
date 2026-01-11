@@ -31,7 +31,7 @@ def copy_directory(source_dir: Path, dest_dir: Path) -> None:
 @click.option("--notes", "-n", default="", help="バージョンノート（更新時）")
 @click.option("--new", is_flag=True, help="新規作成（既存の場合は更新）")
 @click.option("--public", is_flag=True, help="公開データセットとして作成（デフォルトは private）")
-def main(
+def main(  # noqa: PLR0913
     dataset: str,
     title: str | None,
     src_dir: Path,
@@ -67,14 +67,14 @@ def main(
 
     if new:
         api.dataset_create_new(
-            folder=tmp_dir,
+            folder=str(tmp_dir),
             dir_mode="tar",
             convert_to_csv=False,
             public=public,
         )
     else:
         api.dataset_create_version(
-            folder=tmp_dir,
+            folder=str(tmp_dir),
             version_notes=notes,
             dir_mode="tar",
             convert_to_csv=False,

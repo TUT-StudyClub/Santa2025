@@ -98,14 +98,10 @@ def polygon_bounds(vertices: np.ndarray) -> tuple[float, float, float, float]:
     for i in range(1, vertices.shape[0]):
         x = vertices[i, 0]
         y = vertices[i, 1]
-        if x < min_x:
-            min_x = x
-        if x > max_x:
-            max_x = x
-        if y < min_y:
-            min_y = y
-        if y > max_y:
-            max_y = y
+        min_x = min(min_x, x)
+        max_x = max(max_x, x)
+        min_y = min(min_y, y)
+        max_y = max(max_y, y)
     return min_x, min_y, max_x, max_y
 
 
@@ -124,7 +120,7 @@ def point_in_polygon(px: float, py: float, vertices: np.ndarray) -> bool:
 
 
 @njit(cache=True)
-def segments_intersect(
+def segments_intersect(  # noqa: PLR0913
     p1x: float, p1y: float, p2x: float, p2y: float, p3x: float, p3y: float, p4x: float, p4y: float
 ) -> bool:
     d1x = p2x - p1x
@@ -132,7 +128,7 @@ def segments_intersect(
     d2x = p4x - p3x
     d2y = p4y - p3y
     det = d1x * d2y - d1y * d2x
-    if abs(det) < 1e-10:
+    if abs(det) < 1e-10:  # noqa: PLR2004  # noqa: PLR2004
         return False
     t = ((p3x - p1x) * d2y - (p3y - p1y) * d2x) / det
     u = ((p3x - p1x) * d1y - (p3y - p1y) * d1x) / det
@@ -170,9 +166,7 @@ def polygons_overlap(verts1: np.ndarray, verts2: np.ndarray) -> bool:
 
 
 @njit(cache=True)
-def has_any_overlap_with_others(
-    tree_idx: int, new_verts: np.ndarray, all_vertices: list[np.ndarray]
-) -> bool:
+def has_any_overlap_with_others(tree_idx: int, new_verts: np.ndarray, all_vertices: list[np.ndarray]) -> bool:
     """指定したツリーが他のツリーと重なるかチェック"""
     n = len(all_vertices)
     for j in range(n):
@@ -190,14 +184,10 @@ def compute_bounding_box(all_vertices: list[np.ndarray]) -> tuple[float, float, 
     max_y = -math.inf
     for verts in all_vertices:
         x1, y1, x2, y2 = polygon_bounds(verts)
-        if x1 < min_x:
-            min_x = x1
-        if y1 < min_y:
-            min_y = y1
-        if x2 > max_x:
-            max_x = x2
-        if y2 > max_y:
-            max_y = y2
+        min_x = min(min_x, x1)
+        min_y = min(min_y, y1)
+        max_x = max(max_x, x2)
+        max_y = max(max_y, y2)
     return min_x, min_y, max_x, max_y
 
 
@@ -217,7 +207,7 @@ def calculate_score(all_vertices: list[np.ndarray]) -> float:
 # Local Search Optimization
 # -----------------------------------------------------------------------------
 @njit(cache=True)
-def local_search_group(
+def local_search_group(  # noqa: PLR0913
     xs: np.ndarray,
     ys: np.ndarray,
     degs: np.ndarray,
@@ -255,13 +245,13 @@ def local_search_group(
         old_y = ys[tree_idx]
         old_deg = degs[tree_idx]
 
-        if move_type == 0 or move_type == 2:
+        if move_type in {0, 2}:
             dx = (np.random.random() * 2.0 - 1.0) * pos_delta
             dy = (np.random.random() * 2.0 - 1.0) * pos_delta
             xs[tree_idx] += dx
             ys[tree_idx] += dy
 
-        if move_type == 1 or move_type == 2:
+        if move_type in {1, 2}:
             ddeg = (np.random.random() * 2.0 - 1.0) * ang_delta
             degs[tree_idx] = (degs[tree_idx] + ddeg) % 360.0
 
@@ -298,17 +288,17 @@ def local_search_group(
 
 
 @njit(cache=True)
-def local_search_with_sa(
+def local_search_with_sa(  # noqa: PLR0913, PLR0915
     xs: np.ndarray,
     ys: np.ndarray,
     degs: np.ndarray,
     n_iters: int,
     pos_delta: float,
     ang_delta: float,
-    T_max: float,
-    T_min: float,
+    t_max: float,
+    t_min: float,
     random_seed: int,
-) -> tuple[np.ndarray, np.ndarray, np.ndarray, float]:
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, float]:  # noqa: PLR0913
     """
     SAベースの局所探索（悪化も確率的に受け入れる）
     """
@@ -326,10 +316,10 @@ def local_search_with_sa(
     best_ys = ys.copy()
     best_degs = degs.copy()
 
-    T_factor = -math.log(T_max / T_min)
+    t_factor = -math.log(t_max / t_min)
 
     for step in range(n_iters):
-        T = T_max * math.exp(T_factor * step / n_iters)
+        temp = t_max * math.exp(t_factor * step / n_iters)
         progress = step / n_iters
         decay = 1.0 - 0.8 * progress
         cur_pos_delta = pos_delta * decay
@@ -342,13 +332,13 @@ def local_search_with_sa(
         old_y = ys[tree_idx]
         old_deg = degs[tree_idx]
 
-        if move_type == 0 or move_type == 2:
+        if move_type in {0, 2}:
             dx = (np.random.random() * 2.0 - 1.0) * cur_pos_delta
             dy = (np.random.random() * 2.0 - 1.0) * cur_pos_delta
             xs[tree_idx] += dx
             ys[tree_idx] += dy
 
-        if move_type == 1 or move_type == 2:
+        if move_type in {1, 2}:
             ddeg = (np.random.random() * 2.0 - 1.0) * cur_ang_delta
             degs[tree_idx] = (degs[tree_idx] + ddeg) % 360.0
 
@@ -367,7 +357,7 @@ def local_search_with_sa(
         accept = False
         if delta < 0:
             accept = True
-        elif T > 1e-10 and np.random.random() < math.exp(-delta / T):
+        elif temp > 1e-10 and np.random.random() < math.exp(-delta / temp):  # noqa: PLR2004
             accept = True
 
         if accept:
@@ -405,9 +395,7 @@ def load_submission_data(filepath: str) -> tuple[np.ndarray, np.ndarray, np.ndar
     return np.array(all_xs), np.array(all_ys), np.array(all_degs)
 
 
-def save_submission(
-    filepath: str, all_xs: np.ndarray, all_ys: np.ndarray, all_degs: np.ndarray
-) -> None:
+def save_submission(filepath: str, all_xs: np.ndarray, all_ys: np.ndarray, all_degs: np.ndarray) -> None:
     rows = []
     idx = 0
     for n in range(1, 201):
@@ -428,9 +416,7 @@ def calculate_total_score(all_xs: np.ndarray, all_ys: np.ndarray, all_degs: np.n
     total = 0.0
     idx = 0
     for n in range(1, 201):
-        vertices = [
-            get_tree_vertices(all_xs[idx + i], all_ys[idx + i], all_degs[idx + i]) for i in range(n)
-        ]
+        vertices = [get_tree_vertices(all_xs[idx + i], all_ys[idx + i], all_degs[idx + i]) for i in range(n)]
         total += calculate_score(vertices)
         idx += n
     return total
@@ -457,8 +443,7 @@ if __name__ == "__main__":
     for test_n in [10, 50, 100, 200]:
         start = test_n * (test_n - 1) // 2
         test_verts = [
-            get_tree_vertices(all_xs[start + i], all_ys[start + i], all_degs[start + i])
-            for i in range(test_n)
+            get_tree_vertices(all_xs[start + i], all_ys[start + i], all_degs[start + i]) for i in range(test_n)
         ]
         test_score = calculate_score(test_verts)
         print(f"  Group {test_n} score: {test_score:.6f}")
@@ -469,8 +454,8 @@ if __name__ == "__main__":
     pos_delta = float(ls_cfg["pos_delta"])
     ang_delta = float(ls_cfg["ang_delta"])
     use_sa = bool(ls_cfg.get("use_sa", True))
-    T_max = float(ls_cfg.get("T_max", 0.01))
-    T_min = float(ls_cfg.get("T_min", 0.0001))
+    t_max = float(ls_cfg.get("T_max", 0.01))
+    t_min = float(ls_cfg.get("T_min", 0.0001))
     n_min = int(ls_cfg.get("n_min", 2))
     n_max = int(ls_cfg.get("n_max", 200))
     seed_base = int(ls_cfg.get("seed_base", 42))
@@ -517,12 +502,10 @@ if __name__ == "__main__":
 
         if use_sa:
             opt_xs, opt_ys, opt_degs, opt_score = local_search_with_sa(
-                xs, ys, degs, n_iters, pos_delta, ang_delta, T_max, T_min, seed
+                xs, ys, degs, n_iters, pos_delta, ang_delta, t_max, t_min, seed
             )
         else:
-            opt_xs, opt_ys, opt_degs, opt_score = local_search_group(
-                xs, ys, degs, n_iters, pos_delta, ang_delta, seed
-            )
+            opt_xs, opt_ys, opt_degs, opt_score = local_search_group(xs, ys, degs, n_iters, pos_delta, ang_delta, seed)
 
         if opt_score < orig_score - 1e-9:
             improvement = orig_score - opt_score

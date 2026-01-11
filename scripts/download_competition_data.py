@@ -25,9 +25,7 @@ def main() -> None:
 
     competition = args.competition or os.getenv("COMPETITION_SLUG")
     if not competition:
-        raise SystemExit(
-            "competition slug is required: use --competition or set COMPETITION_SLUG in .env"
-        )
+        raise SystemExit("competition slug is required: use --competition or set COMPETITION_SLUG in .env")
 
     out_dir = Path(args.out)
     out_dir.mkdir(parents=True, exist_ok=True)

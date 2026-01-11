@@ -69,14 +69,10 @@ def compute_bounding_box(all_vertices: list[np.ndarray]) -> tuple[float, float, 
     for verts in all_vertices:
         for i in range(verts.shape[0]):
             x, y = verts[i, 0], verts[i, 1]
-            if x < min_x:
-                min_x = x
-            if x > max_x:
-                max_x = x
-            if y < min_y:
-                min_y = y
-            if y > max_y:
-                max_y = y
+            min_x = min(min_x, x)
+            max_x = max(max_x, x)
+            min_y = min(min_y, y)
+            max_y = max(max_y, y)
     return min_x, min_y, max_x, max_y
 
 
@@ -120,10 +116,7 @@ def main():
 
     for n in range(1, 201):
         start = n * (n - 1) // 2
-        vertices = [
-            get_tree_vertices(all_xs[start + i], all_ys[start + i], all_degs[start + i])
-            for i in range(n)
-        ]
+        vertices = [get_tree_vertices(all_xs[start + i], all_ys[start + i], all_degs[start + i]) for i in range(n)]
         score = calculate_score(vertices)
         side = get_side_length(vertices)
         scores.append((n, score, side))

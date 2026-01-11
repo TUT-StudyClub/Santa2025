@@ -123,14 +123,10 @@ def polygon_bounds(vertices: np.ndarray) -> tuple[float, float, float, float]:
     for i in range(1, vertices.shape[0]):
         x = vertices[i, 0]
         y = vertices[i, 1]
-        if x < min_x:
-            min_x = x
-        if x > max_x:
-            max_x = x
-        if y < min_y:
-            min_y = y
-        if y > max_y:
-            max_y = y
+        min_x = min(min_x, x)
+        max_x = max(max_x, x)
+        min_y = min(min_y, y)
+        max_y = max(max_y, y)
     return min_x, min_y, max_x, max_y
 
 
@@ -149,7 +145,7 @@ def point_in_polygon(px: float, py: float, vertices: np.ndarray) -> bool:
 
 
 @njit(cache=True)
-def segments_intersect(
+def segments_intersect(  # noqa: PLR0913
     p1x: float, p1y: float, p2x: float, p2y: float, p3x: float, p3y: float, p4x: float, p4y: float
 ) -> bool:
     d1x = p2x - p1x
@@ -157,7 +153,7 @@ def segments_intersect(
     d2x = p4x - p3x
     d2y = p4y - p3y
     det = d1x * d2y - d1y * d2x
-    if abs(det) < 1e-10:
+    if abs(det) < 1e-10:  # noqa: PLR2004
         return False
     t = ((p3x - p1x) * d2y - (p3y - p1y) * d2x) / det
     u = ((p3x - p1x) * d1y - (p3y - p1y) * d1x) / det
@@ -212,14 +208,10 @@ def compute_bounding_box(all_vertices: list[np.ndarray]) -> tuple[float, float, 
     max_y = -math.inf
     for verts in all_vertices:
         x1, y1, x2, y2 = polygon_bounds(verts)
-        if x1 < min_x:
-            min_x = x1
-        if y1 < min_y:
-            min_y = y1
-        if x2 > max_x:
-            max_x = x2
-        if y2 > max_y:
-            max_y = y2
+        min_x = min(min_x, x1)
+        min_y = min(min_y, y1)
+        max_x = max(max_x, x2)
+        max_y = max(max_y, y2)
     return min_x, min_y, max_x, max_y
 
 
@@ -239,7 +231,7 @@ def calculate_score_numba(all_vertices: list[np.ndarray]) -> float:
 # Grid Generation
 # -----------------------------------------------------------------------------
 @njit(cache=True)
-def create_grid_vertices_extended(
+def create_grid_vertices_extended(  # noqa: PLR0913
     seed_xs: np.ndarray,
     seed_ys: np.ndarray,
     seed_degs: np.ndarray,
@@ -278,12 +270,8 @@ def create_grid_vertices_extended(
 
 
 @njit(cache=True)
-def get_initial_translations(
-    seed_xs: np.ndarray, seed_ys: np.ndarray, seed_degs: np.ndarray
-) -> tuple[float, float]:
-    seed_vertices = [
-        get_tree_vertices(seed_xs[i], seed_ys[i], seed_degs[i]) for i in range(len(seed_xs))
-    ]
+def get_initial_translations(seed_xs: np.ndarray, seed_ys: np.ndarray, seed_degs: np.ndarray) -> tuple[float, float]:
+    seed_vertices = [get_tree_vertices(seed_xs[i], seed_ys[i], seed_degs[i]) for i in range(len(seed_xs))]
     min_x, min_y, max_x, max_y = compute_bounding_box(seed_vertices)
     return max_x - min_x, max_y - min_y
 
@@ -292,7 +280,7 @@ def get_initial_translations(
 # Optimization Logic (Simulated Annealing)
 # -----------------------------------------------------------------------------
 @njit(cache=True)
-def sa_optimize_improved(
+def sa_optimize_improved(  # noqa: PLR0912, PLR0913, PLR0915
     seed_xs_init: np.ndarray,
     seed_ys_init: np.ndarray,
     seed_degs_init: np.ndarray,
@@ -304,10 +292,10 @@ def sa_optimize_improved(
     nrows: int,
     append_x: bool,
     append_y: bool,
-    Tmax: float,
-    Tmin: float,
+    t_max: float,
+    t_min: float,
     nsteps: int,
-    nsteps_per_T: int,
+    nsteps_per_temp: int,
     position_delta: float,
     angle_delta: float,
     angle_delta2: float,
@@ -341,8 +329,8 @@ def sa_optimize_improved(
     best_a, best_b = a, b
     best_shear_x, best_shear_y = shear_x, shear_y
 
-    T = Tmax
-    Tfactor = -math.log(Tmax / Tmin)
+    temp = t_max
+    t_factor = -math.log(t_max / t_min)
     n_move_types = n_seeds + 2
 
     old_x, old_y, old_deg = 0.0, 0.0, 0.0
@@ -360,7 +348,7 @@ def sa_optimize_improved(
         cur_ang_delta = angle_delta * decay
         cur_shear_delta = shear_delta * decay
 
-        for _ in range(nsteps_per_T):
+        for _ in range(nsteps_per_temp):
             move_type = np.random.randint(0, n_move_types)
 
             if move_type < n_seeds:
@@ -443,7 +431,7 @@ def sa_optimize_improved(
 
             if delta < 0:
                 accept = True
-            elif T > 1e-10 and np.random.random() < math.exp(-delta / T):
+            elif temp > 1e-10 and np.random.random() < math.exp(-delta / temp):  # noqa: PLR2004
                 accept = True
 
             if accept:
@@ -453,20 +441,19 @@ def sa_optimize_improved(
                     best_xs, best_ys, best_degs = seed_xs.copy(), seed_ys.copy(), seed_degs.copy()
                     best_a, best_b = a, b
                     best_shear_x, best_shear_y = shear_x, shear_y
+            elif move_type < n_seeds:
+                seed_xs[move_type], seed_ys[move_type], seed_degs[move_type] = (
+                    old_x,
+                    old_y,
+                    old_deg,
+                )
+            elif move_type == n_seeds:
+                a, b = old_a, old_b
+                shear_x, shear_y = old_shear_x, old_shear_y
             else:
-                if move_type < n_seeds:
-                    seed_xs[move_type], seed_ys[move_type], seed_degs[move_type] = (
-                        old_x,
-                        old_y,
-                        old_deg,
-                    )
-                elif move_type == n_seeds:
-                    a, b = old_a, old_b
-                    shear_x, shear_y = old_shear_x, old_shear_y
-                else:
-                    seed_degs[:] = old_degs_array[:]
+                seed_degs[:] = old_degs_array[:]
 
-        if last_best_score - best_score > 1e-9:
+        if last_best_score - best_score > 1e-9:  # noqa: PLR2004
             no_improve_count = 0
             last_best_score = best_score
         else:
@@ -475,13 +462,13 @@ def sa_optimize_improved(
         if no_improve_count >= patience:
             break
 
-        T = Tmax * math.exp(Tfactor * (step + 1) / nsteps)
+        temp = t_max * math.exp(t_factor * (step + 1) / nsteps)
 
     return best_score, best_xs, best_ys, best_degs, best_a, best_b, best_shear_x, best_shear_y
 
 
 @njit(cache=True)
-def hill_refine(
+def hill_refine(  # noqa: PLR0913, PLR0912, PLR0915
     seed_xs: np.ndarray,
     seed_ys: np.ndarray,
     seed_degs: np.ndarray,
@@ -586,26 +573,25 @@ def hill_refine(
             continue
 
         new_score = calculate_score_numba(new_vertices)
-        if new_score < current_score - 1e-9:
+        if new_score < current_score - 1e-9:  # noqa: PLR2004
             current_score = new_score
+        elif move_type < n_seeds:
+            seed_xs[move_type], seed_ys[move_type], seed_degs[move_type] = (
+                old_x,
+                old_y,
+                old_deg,
+            )
+        elif move_type == n_seeds:
+            a, b = old_a, old_b
+            shear_x, shear_y = old_shear_x, old_shear_y
         else:
-            if move_type < n_seeds:
-                seed_xs[move_type], seed_ys[move_type], seed_degs[move_type] = (
-                    old_x,
-                    old_y,
-                    old_deg,
-                )
-            elif move_type == n_seeds:
-                a, b = old_a, old_b
-                shear_x, shear_y = old_shear_x, old_shear_y
-            else:
-                seed_degs[:] = old_degs_array[:]
+            seed_degs[:] = old_degs_array[:]
 
     return current_score, seed_xs, seed_ys, seed_degs, a, b, shear_x, shear_y
 
 
 @njit(cache=True)
-def get_final_grid_positions_extended(
+def get_final_grid_positions_extended(  # noqa: PLR0913
     seed_xs: np.ndarray,
     seed_ys: np.ndarray,
     seed_degs: np.ndarray,
@@ -669,9 +655,7 @@ def deletion_cascade_numba(
     side_lengths = np.zeros(201, dtype=np.float64)
     for n in range(1, 201):
         start = group_start[n]
-        vertices = [
-            get_tree_vertices(new_xs[i], new_ys[i], new_degs[i]) for i in range(start, start + n)
-        ]
+        vertices = [get_tree_vertices(new_xs[i], new_ys[i], new_degs[i]) for i in range(start, start + n)]
         side_lengths[n] = get_side_length(vertices)
 
     for n in range(200, 1, -1):
@@ -731,7 +715,7 @@ def build_hill_params(sa_params: dict, hill_cfg: dict) -> dict | None:
     return {"steps": steps, "decay": decay, "seed_offset": seed_offset}
 
 
-def apply_jitter(
+def apply_jitter(  # noqa: PLR0913
     seed_xs: np.ndarray,
     seed_ys: np.ndarray,
     seed_degs: np.ndarray,
@@ -790,9 +774,7 @@ def optimize_grid_config(args: tuple) -> tuple[int, float, list[tuple[float, flo
     seed_ys_base = np.array([s[1] for s in initial_seeds], dtype=np.float64)
     seed_degs_base = np.array([s[2] for s in initial_seeds], dtype=np.float64)
 
-    n_trees = (
-        len(initial_seeds) * ncols * nrows + (nrows if append_x else 0) + (ncols if append_y else 0)
-    )
+    n_trees = len(initial_seeds) * ncols * nrows + (nrows if append_x else 0) + (ncols if append_y else 0)
 
     restarts = max(1, int(multi_start.get("restarts", 1)))
     seed_stride = int(multi_start.get("seed_stride", 1000))
@@ -945,9 +927,7 @@ def optimize_grid_config(args: tuple) -> tuple[int, float, list[tuple[float, flo
     return n_trees, best_score, tree_data
 
 
-def save_submission(
-    filepath: str, all_xs: np.ndarray, all_ys: np.ndarray, all_degs: np.ndarray
-) -> None:
+def save_submission(filepath: str, all_xs: np.ndarray, all_ys: np.ndarray, all_degs: np.ndarray) -> None:
     rows = []
     idx = 0
     for n in range(1, 201):
@@ -1001,7 +981,7 @@ def compute_center_bounds(
 
 
 @njit(cache=True)
-def can_scale_group(
+def can_scale_group(  # noqa: PLR0913
     all_xs: np.ndarray,
     all_ys: np.ndarray,
     all_degs: np.ndarray,
@@ -1021,7 +1001,7 @@ def can_scale_group(
 
 
 @njit(cache=True)
-def can_scale_group_aniso(
+def can_scale_group_aniso(  # noqa: PLR0913
     all_xs: np.ndarray,
     all_ys: np.ndarray,
     all_degs: np.ndarray,
@@ -1042,7 +1022,7 @@ def can_scale_group_aniso(
 
 
 @njit(cache=True)
-def apply_group_scale_aniso(
+def apply_group_scale_aniso(  # noqa: PLR0913
     all_xs: np.ndarray,
     all_ys: np.ndarray,
     start_idx: int,
@@ -1141,7 +1121,7 @@ def shrink_positions(
     return new_xs, new_ys
 
 
-def shrink_positions_aniso(
+def shrink_positions_aniso(  # noqa: PLR0912, PLR0915
     all_xs: np.ndarray,
     all_ys: np.ndarray,
     all_degs: np.ndarray,
@@ -1162,8 +1142,7 @@ def shrink_positions_aniso(
         min_scale_x = 0.5
     if min_scale_y <= 0.0:
         min_scale_y = 0.5
-    if iters < 1:
-        iters = 1
+    iters = max(iters, 1)
 
     new_xs = all_xs.copy()
     new_ys = all_ys.copy()
@@ -1187,9 +1166,7 @@ def shrink_positions_aniso(
         best = 1.0
         for _ in range(iters):
             mid = (low + high) * 0.5
-            if can_scale_group_aniso(
-                new_xs, new_ys, all_degs, start, n, center_x, center_y, mid, 1.0
-            ):
+            if can_scale_group_aniso(new_xs, new_ys, all_degs, start, n, center_x, center_y, mid, 1.0):
                 best = mid
                 high = mid
             else:
@@ -1209,9 +1186,7 @@ def shrink_positions_aniso(
         best = 1.0
         for _ in range(iters):
             mid = (low + high) * 0.5
-            if can_scale_group_aniso(
-                new_xs, new_ys, all_degs, start, n, center_x, center_y, 1.0, mid
-            ):
+            if can_scale_group_aniso(new_xs, new_ys, all_degs, start, n, center_x, center_y, 1.0, mid):
                 best = mid
                 high = mid
             else:
@@ -1224,7 +1199,7 @@ def shrink_positions_aniso(
 
 
 @njit(cache=True)
-def group_side_length_rotated(
+def group_side_length_rotated(  # noqa: PLR0913
     all_xs: np.ndarray,
     all_ys: np.ndarray,
     all_degs: np.ndarray,
@@ -1252,20 +1227,16 @@ def group_side_length_rotated(
         deg = (all_degs[idx] + angle_deg) % 360.0
         verts = get_tree_vertices(cx, cy, deg)
         x1, y1, x2, y2 = polygon_bounds(verts)
-        if x1 < min_x:
-            min_x = x1
-        if y1 < min_y:
-            min_y = y1
-        if x2 > max_x:
-            max_x = x2
-        if y2 > max_y:
-            max_y = y2
+        min_x = min(min_x, x1)
+        min_y = min(min_y, y1)
+        max_x = max(max_x, x2)
+        max_y = max(max_y, y2)
 
     return max(max_x - min_x, max_y - min_y)
 
 
 @njit(cache=True)
-def find_best_rotation_angle(
+def find_best_rotation_angle(  # noqa: PLR0913
     all_xs: np.ndarray,
     all_ys: np.ndarray,
     all_degs: np.ndarray,
@@ -1280,9 +1251,7 @@ def find_best_rotation_angle(
 
     for k in range(angles_rad.shape[0]):
         angle = angles_rad[k]
-        side = group_side_length_rotated(
-            all_xs, all_ys, all_degs, start_idx, n, center_x, center_y, angle
-        )
+        side = group_side_length_rotated(all_xs, all_ys, all_degs, start_idx, n, center_x, center_y, angle)
         if side < best_side:
             best_side = side
             best_angle = angle
@@ -1291,7 +1260,7 @@ def find_best_rotation_angle(
 
 
 @njit(cache=True)
-def apply_group_rotation(
+def apply_group_rotation(  # noqa: PLR0913
     all_xs: np.ndarray,
     all_ys: np.ndarray,
     all_degs: np.ndarray,
@@ -1334,18 +1303,13 @@ def rotate_positions(
 
     if coarse_step_deg <= 0.0:
         coarse_step_deg = 5.0
-    if fine_step_deg < 0.0:
-        fine_step_deg = 0.0
-    if fine_window_deg < 0.0:
-        fine_window_deg = 0.0
+    fine_step_deg = max(fine_step_deg, 0.0)
+    fine_window_deg = max(fine_window_deg, 0.0)
     if max_angle_deg <= 0.0:
         max_angle_deg = 90.0
-    if max_angle_deg > 90.0:
-        max_angle_deg = 90.0
+    max_angle_deg = min(max_angle_deg, 90.0)
 
-    angles_coarse = np.deg2rad(
-        np.arange(0.0, max_angle_deg + 1e-9, coarse_step_deg, dtype=np.float64)
-    )
+    angles_coarse = np.deg2rad(np.arange(0.0, max_angle_deg + 1e-9, coarse_step_deg, dtype=np.float64))
 
     new_xs = all_xs.copy()
     new_ys = all_ys.copy()
@@ -1365,23 +1329,19 @@ def rotate_positions(
         else:
             center_x, center_y = compute_center_bounds(new_xs, new_ys, new_degs, start, n)
 
-        best_angle, _ = find_best_rotation_angle(
-            new_xs, new_ys, new_degs, start, n, center_x, center_y, angles_coarse
-        )
+        best_angle, _ = find_best_rotation_angle(new_xs, new_ys, new_degs, start, n, center_x, center_y, angles_coarse)
 
         if fine_step_deg > 0.0 and fine_window_deg > 0.0:
             best_deg = best_angle * 180.0 / math.pi
             fine_start = max(0.0, best_deg - fine_window_deg)
             fine_end = min(max_angle_deg, best_deg + fine_window_deg)
             if fine_end - fine_start >= fine_step_deg:
-                angles_fine = np.deg2rad(
-                    np.arange(fine_start, fine_end + 1e-9, fine_step_deg, dtype=np.float64)
-                )
+                angles_fine = np.deg2rad(np.arange(fine_start, fine_end + 1e-9, fine_step_deg, dtype=np.float64))
                 best_angle, _ = find_best_rotation_angle(
                     new_xs, new_ys, new_degs, start, n, center_x, center_y, angles_fine
                 )
 
-        if abs(best_angle) > 1e-12:
+        if abs(best_angle) > 1e-12:  # noqa: PLR2004
             apply_group_rotation(new_xs, new_ys, new_degs, start, n, center_x, center_y, best_angle)
 
     return new_xs, new_ys, new_degs
@@ -1391,9 +1351,7 @@ def calculate_total_score(all_xs: np.ndarray, all_ys: np.ndarray, all_degs: np.n
     total = 0.0
     idx = 0
     for n in range(1, 201):
-        vertices = [
-            get_tree_vertices(all_xs[idx + i], all_ys[idx + i], all_degs[idx + i]) for i in range(n)
-        ]
+        vertices = [get_tree_vertices(all_xs[idx + i], all_ys[idx + i], all_degs[idx + i]) for i in range(n)]
         total += calculate_score_numba(vertices)
         idx += n
     return total
@@ -1429,7 +1387,7 @@ if __name__ == "__main__":
             n_trees = n_seeds * ncols * nrows
             max_t = grid_cfg["max_trees"]
 
-            if 20 <= n_trees <= max_t:
+            if 20 <= n_trees <= max_t:  # noqa: PLR2004
                 if (ncols, nrows, False, False) not in grid_configs:
                     grid_configs.append((ncols, nrows, False, False))
                 if n_seeds > 1 and n_trees + ncols <= max_t:
@@ -1461,7 +1419,7 @@ if __name__ == "__main__":
     n_seeds = len(seeds)
     for i, (ncols, nrows, append_x, append_y) in enumerate(grid_configs):
         n_trees = n_seeds * ncols * nrows + (nrows if append_x else 0) + (ncols if append_y else 0)
-        if n_trees > 200:
+        if n_trees > 200:  # noqa: PLR2004
             continue
         seed = sa_params["random_seed_base"] + i * 1000
         tasks.append(
@@ -1514,7 +1472,7 @@ if __name__ == "__main__":
 
         if score < baseline_score:
             new_trees[n_trees] = tree_data
-            if baseline_score - score > 1e-6:
+            if baseline_score - score > 1e-6:  # noqa: PLR2004
                 improved_count += 1
                 print(f"  n={n_trees}: {score:.6f} (baseline: {baseline_score:.6f})")
 
@@ -1544,23 +1502,17 @@ if __name__ == "__main__":
     shrink_aniso_cfg = SHRINK_ANISO
     if shrink_aniso_cfg.get("enabled", False):
         print("Applying anisotropic shrink optimization...")
-        final_xs, final_ys = shrink_positions_aniso(
-            final_xs, final_ys, final_degs, shrink_aniso_cfg
-        )
+        final_xs, final_ys = shrink_positions_aniso(final_xs, final_ys, final_degs, shrink_aniso_cfg)
 
     rotate_cfg = ROTATE
     if rotate_cfg.get("enabled", False):
         print("Applying rotation optimization...")
-        final_xs, final_ys, final_degs = rotate_positions(
-            final_xs, final_ys, final_degs, rotate_cfg
-        )
+        final_xs, final_ys, final_degs = rotate_positions(final_xs, final_ys, final_degs, rotate_cfg)
 
     # Second pass of shrink after rotation
     if shrink_aniso_cfg.get("enabled", False):
         print("Applying second pass of anisotropic shrink after rotation...")
-        final_xs, final_ys = shrink_positions_aniso(
-            final_xs, final_ys, final_degs, shrink_aniso_cfg
-        )
+        final_xs, final_ys = shrink_positions_aniso(final_xs, final_ys, final_degs, shrink_aniso_cfg)
 
     final_score = calculate_total_score(final_xs, final_ys, final_degs)
     print("=" * 80)

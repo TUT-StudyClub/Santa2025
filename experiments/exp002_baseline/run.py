@@ -82,14 +82,10 @@ def polygon_bounds(vertices):
     for i in range(1, vertices.shape[0]):
         x = vertices[i, 0]
         y = vertices[i, 1]
-        if x < min_x:
-            min_x = x
-        if x > max_x:
-            max_x = x
-        if y < min_y:
-            min_y = y
-        if y > max_y:
-            max_y = y
+        min_x = min(min_x, x)
+        max_x = max(max_x, x)
+        min_y = min(min_y, y)
+        max_y = max(max_y, y)
     return min_x, min_y, max_x, max_y
 
 
@@ -109,14 +105,14 @@ def point_in_polygon(px, py, vertices):
 
 
 @njit(cache=True)
-def segments_intersect(p1x, p1y, p2x, p2y, p3x, p3y, p4x, p4y):
+def segments_intersect(p1x, p1y, p2x, p2y, p3x, p3y, p4x, p4y):  # noqa: PLR0913
     """2つの線分が交差しているか判定"""
     d1x = p2x - p1x
     d1y = p2y - p1y
     d2x = p4x - p3x
     d2y = p4y - p3y
     det = d1x * d2y - d1y * d2x
-    if abs(det) < 1e-10:
+    if abs(det) < 1e-10:  # noqa: PLR2004
         return False
     t = ((p3x - p1x) * d2y - (p3y - p1y) * d2x) / det
     u = ((p3x - p1x) * d1y - (p3y - p1y) * d1x) / det
@@ -176,14 +172,10 @@ def compute_bounding_box(all_vertices):
     max_y = -math.inf
     for verts in all_vertices:
         x1, y1, x2, y2 = polygon_bounds(verts)
-        if x1 < min_x:
-            min_x = x1
-        if y1 < min_y:
-            min_y = y1
-        if x2 > max_x:
-            max_x = x2
-        if y2 > max_y:
-            max_y = y2
+        min_x = min(min_x, x1)
+        min_y = min(min_y, y1)
+        max_x = max(max_x, x2)
+        max_y = max(max_y, y2)
     return min_x, min_y, max_x, max_y
 
 
@@ -205,7 +197,7 @@ def calculate_score_numba(all_vertices):
 # グリッド生成関連関数
 # -----------------------------------------------------------------------------
 @njit(cache=True)
-def create_grid_vertices_extended(
+def create_grid_vertices_extended(  # noqa: PLR0913
     seed_xs, seed_ys, seed_degs, a, b, ncols, nrows, append_x, append_y
 ):
     """並進によるグリッド配置を生成（端の追加配置オプション付き）"""
@@ -240,9 +232,7 @@ def create_grid_vertices_extended(
 @njit(cache=True)
 def get_initial_translations(seed_xs, seed_ys, seed_degs):
     """シードのバウンディングボックスから初期並進距離を算出"""
-    seed_vertices = [
-        get_tree_vertices(seed_xs[i], seed_ys[i], seed_degs[i]) for i in range(len(seed_xs))
-    ]
+    seed_vertices = [get_tree_vertices(seed_xs[i], seed_ys[i], seed_degs[i]) for i in range(len(seed_xs))]
     min_x, min_y, max_x, max_y = compute_bounding_box(seed_vertices)
     return max_x - min_x, max_y - min_y
 
@@ -251,7 +241,7 @@ def get_initial_translations(seed_xs, seed_ys, seed_degs):
 # 焼きなまし法 (Simulated Annealing) コアロジック
 # -----------------------------------------------------------------------------
 @njit(cache=True)
-def sa_optimize_improved(
+def sa_optimize_improved(  # noqa: PLR0912, PLR0913, PLR0915
     seed_xs_init,
     seed_ys_init,
     seed_degs_init,
@@ -261,10 +251,10 @@ def sa_optimize_improved(
     nrows,
     append_x,
     append_y,
-    Tmax,
-    Tmin,
+    t_max,
+    t_min,
     nsteps,
-    nsteps_per_T,
+    nsteps_per_temp,
     position_delta,
     angle_delta,
     angle_delta2,
@@ -285,9 +275,7 @@ def sa_optimize_improved(
     a, b = a_init, b_init
 
     # 初期の妥当性チェックと補正
-    all_vertices = create_grid_vertices_extended(
-        seed_xs, seed_ys, seed_degs, a, b, ncols, nrows, append_x, append_y
-    )
+    all_vertices = create_grid_vertices_extended(seed_xs, seed_ys, seed_degs, a, b, ncols, nrows, append_x, append_y)
     if has_any_overlap(all_vertices):
         a_test, b_test = get_initial_translations(seed_xs, seed_ys, seed_degs)
         a = max(a, a_test * 1.5)
@@ -301,8 +289,8 @@ def sa_optimize_improved(
     best_xs, best_ys, best_degs = seed_xs.copy(), seed_ys.copy(), seed_degs.copy()
     best_a, best_b = a, b
 
-    T = Tmax
-    Tfactor = -math.log(Tmax / Tmin)
+    temp = t_max
+    t_factor = -math.log(t_max / t_min)
     n_move_types = n_seeds + 2
 
     # バックアップ用変数の初期化（コンパイル時の型定義のため）
@@ -311,7 +299,7 @@ def sa_optimize_improved(
     # old_degs_array はループ内で生成
 
     for step in range(nsteps):
-        for _ in range(nsteps_per_T):
+        for _ in range(nsteps_per_temp):
             move_type = np.random.randint(0, n_move_types)
 
             # 状態退避と更新
@@ -355,9 +343,7 @@ def sa_optimize_improved(
             # -----------------------------------------------------------
 
             # 1. 簡易チェック (2x2)
-            test_vertices = create_grid_vertices_extended(
-                seed_xs, seed_ys, seed_degs, a, b, 2, 2, False, False
-            )
+            test_vertices = create_grid_vertices_extended(seed_xs, seed_ys, seed_degs, a, b, 2, 2, False, False)
             if has_any_overlap(test_vertices):
                 # 復元 (Revert)
                 if move_type < n_seeds:
@@ -395,7 +381,7 @@ def sa_optimize_improved(
             accept = False
             if delta < 0:
                 accept = True
-            elif T > 1e-10 and np.random.random() < math.exp(-delta / T):
+            elif temp > 1e-10 and np.random.random() < math.exp(-delta / temp):  # noqa: PLR2004
                 accept = True
 
             if accept:
@@ -404,25 +390,24 @@ def sa_optimize_improved(
                     best_score = new_score
                     best_xs, best_ys, best_degs = seed_xs.copy(), seed_ys.copy(), seed_degs.copy()
                     best_a, best_b = a, b
+            # 受理されなかった場合も復元 (Revert)
+            elif move_type < n_seeds:
+                seed_xs[move_type] = old_x
+                seed_ys[move_type] = old_y
+                seed_degs[move_type] = old_deg
+            elif move_type == n_seeds:
+                a = old_a
+                b = old_b
             else:
-                # 受理されなかった場合も復元 (Revert)
-                if move_type < n_seeds:
-                    seed_xs[move_type] = old_x
-                    seed_ys[move_type] = old_y
-                    seed_degs[move_type] = old_deg
-                elif move_type == n_seeds:
-                    a = old_a
-                    b = old_b
-                else:
-                    seed_degs[:] = old_degs_array[:]
+                seed_degs[:] = old_degs_array[:]
 
-        T = Tmax * math.exp(Tfactor * (step + 1) / nsteps)
+        temp = t_max * math.exp(t_factor * (step + 1) / nsteps)
 
     return best_score, best_xs, best_ys, best_degs, best_a, best_b
 
 
 @njit(cache=True)
-def get_final_grid_positions_extended(
+def get_final_grid_positions_extended(  # noqa: PLR0913
     seed_xs, seed_ys, seed_degs, a, b, ncols, nrows, append_x, append_y
 ):
     """最適化結果から最終的な全ツリーの配置座標を生成"""
@@ -471,9 +456,7 @@ def optimize_grid_config(args):
     seed_ys = np.array([s[1] for s in initial_seeds], dtype=np.float64)
     seed_degs = np.array([s[2] for s in initial_seeds], dtype=np.float64)
 
-    n_trees = (
-        len(initial_seeds) * ncols * nrows + (nrows if append_x else 0) + (ncols if append_y else 0)
-    )
+    n_trees = len(initial_seeds) * ncols * nrows + (nrows if append_x else 0) + (ncols if append_y else 0)
 
     best_score, best_xs, best_ys, best_degs, best_a, best_b = sa_optimize_improved(
         seed_xs,
@@ -523,9 +506,7 @@ def deletion_cascade_numba(all_xs, all_ys, all_degs, group_sizes):
     side_lengths = np.zeros(201, dtype=np.float64)
     for n in range(1, 201):
         start = group_start[n]
-        vertices = [
-            get_tree_vertices(new_xs[i], new_ys[i], new_degs[i]) for i in range(start, start + n)
-        ]
+        vertices = [get_tree_vertices(new_xs[i], new_ys[i], new_degs[i]) for i in range(start, start + n)]
         side_lengths[n] = get_side_length(vertices)
 
     # 200個から2個まで降順で処理
@@ -575,9 +556,7 @@ def load_submission_data(filepath):
         for _, row in group.iterrows():
             all_xs.append(float(row["x"][1:]) if isinstance(row["x"], str) else float(row["x"]))
             all_ys.append(float(row["y"][1:]) if isinstance(row["y"], str) else float(row["y"]))
-            all_degs.append(
-                float(row["deg"][1:]) if isinstance(row["deg"], str) else float(row["deg"])
-            )
+            all_degs.append(float(row["deg"][1:]) if isinstance(row["deg"], str) else float(row["deg"]))
     return np.array(all_xs), np.array(all_ys), np.array(all_degs)
 
 
@@ -602,9 +581,7 @@ def calculate_total_score(all_xs, all_ys, all_degs):
     total = 0.0
     idx = 0
     for n in range(1, 201):
-        vertices = [
-            get_tree_vertices(all_xs[idx + i], all_ys[idx + i], all_degs[idx + i]) for i in range(n)
-        ]
+        vertices = [get_tree_vertices(all_xs[idx + i], all_ys[idx + i], all_degs[idx + i]) for i in range(n)]
         total += calculate_score_numba(vertices)
         idx += n
     return total
@@ -636,7 +613,7 @@ if __name__ == "__main__":
             n_trees = 2 * ncols * nrows
             max_t = grid_cfg["max_trees"]
 
-            if 20 <= n_trees <= max_t:
+            if 20 <= n_trees <= max_t:  # noqa: PLR2004
                 if (ncols, nrows, False, False) not in grid_configs:
                     grid_configs.append((ncols, nrows, False, False))
                 if n_trees + ncols <= max_t:
@@ -660,7 +637,7 @@ if __name__ == "__main__":
 
     for i, (ncols, nrows, append_x, append_y) in enumerate(grid_configs):
         n_trees = 2 * ncols * nrows + (nrows if append_x else 0) + (ncols if append_y else 0)
-        if n_trees > 200:
+        if n_trees > 200:  # noqa: PLR2004
             continue
         seed = sa_params["random_seed_base"] + i * 1000
         tasks.append((ncols, nrows, append_x, append_y, seeds, a_init, b_init, sa_params, seed))
@@ -686,7 +663,7 @@ if __name__ == "__main__":
 
         if score < baseline_score:
             new_trees[n_trees] = tree_data
-            if baseline_score - score > 1e-6:
+            if baseline_score - score > 1e-6:  # noqa: PLR2004
                 improved_count += 1
                 print(f"  n={n_trees}: {score:.6f} (baseline: {baseline_score:.6f})")
 

@@ -1484,6 +1484,19 @@ wheels = [
 ]
 
 [[package]]
+name = "pandas-stubs"
+version = "2.3.3.251219"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "numpy" },
+    { name = "types-pytz" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/95/ee/5407e9e63d22a47774f9246ca80b24f82c36f26efd39f9e3c5b584b915aa/pandas_stubs-2.3.3.251219.tar.gz", hash = "sha256:dc2883e6daff49d380d1b5a2e864983ab9be8cd9a661fa861e3dea37559a5af4", size = 106899, upload-time = "2025-12-19T15:49:53.766Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/64/20/69f2a39792a653fd64d916cd563ed79ec6e5dcfa6408c4674021d810afcf/pandas_stubs-2.3.3.251219-py3-none-any.whl", hash = "sha256:ccc6337febb51d6d8a08e4c96b479478a0da0ef704b5e08bd212423fe1cb549c", size = 163667, upload-time = "2025-12-19T15:49:52.072Z" },
+]
+
+[[package]]
 name = "parso"
 version = "0.8.5"
 source = { registry = "https://pypi.org/simple" }
@@ -1919,10 +1932,12 @@ dependencies = [
 dev = [
     { name = "import-linter" },
     { name = "marimo" },
+    { name = "pandas-stubs" },
     { name = "pre-commit" },
     { name = "pytest" },
     { name = "ruff" },
     { name = "ty" },
+    { name = "types-pyyaml" },
 ]
 
 [package.metadata]
@@ -1947,10 +1962,12 @@ requires-dist = [
 dev = [
     { name = "import-linter", specifier = ">=2.9" },
     { name = "marimo", specifier = ">=0.19.2" },
+    { name = "pandas-stubs", specifier = ">=2.3.3.251219" },
     { name = "pre-commit" },
     { name = "pytest" },
     { name = "ruff" },
     { name = "ty", specifier = ">=0.0.11" },
+    { name = "types-pyyaml", specifier = ">=6.0.12.20250915" },
 ]
 
 [[package]]
@@ -2413,6 +2430,24 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/d1/94/a009ad9d8b359933cfea8721c689c0331189be28650d74dcc6add4d5bb09/ty-0.0.11-py3-none-win32.whl", hash = "sha256:44cfb7bb2d6784bd7ffe7b5d9ea90851d9c4723729c50b5f0732d4b9a2013cfc", size = 9040448, upload-time = "2026-01-09T21:06:32.241Z" },
     { url = "https://files.pythonhosted.org/packages/df/04/5a5dfd0aec0ea99ead1e824ee6e347fb623c464da7886aa1e3660fb0f36c/ty-0.0.11-py3-none-win_amd64.whl", hash = "sha256:1bb205db92715d4a13343bfd5b0c59ce8c0ca0daa34fb220ec9120fc66ccbda7", size = 9780112, upload-time = "2026-01-09T21:06:04.69Z" },
     { url = "https://files.pythonhosted.org/packages/ad/07/47d4fccd7bcf5eea1c634d518d6cb233f535a85d0b63fcd66815759e2fa0/ty-0.0.11-py3-none-win_arm64.whl", hash = "sha256:4688bd87b2dc5c85da277bda78daba14af2e66f3dda4d98f3604e3de75519eba", size = 9194038, upload-time = "2026-01-09T21:06:10.152Z" },
+]
+
+[[package]]
+name = "types-pytz"
+version = "2025.2.0.20251108"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/40/ff/c047ddc68c803b46470a357454ef76f4acd8c1088f5cc4891cdd909bfcf6/types_pytz-2025.2.0.20251108.tar.gz", hash = "sha256:fca87917836ae843f07129567b74c1929f1870610681b4c92cb86a3df5817bdb", size = 10961, upload-time = "2025-11-08T02:55:57.001Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/e7/c1/56ef16bf5dcd255155cc736d276efa6ae0a5c26fd685e28f0412a4013c01/types_pytz-2025.2.0.20251108-py3-none-any.whl", hash = "sha256:0f1c9792cab4eb0e46c52f8845c8f77cf1e313cb3d68bf826aa867fe4717d91c", size = 10116, upload-time = "2025-11-08T02:55:56.194Z" },
+]
+
+[[package]]
+name = "types-pyyaml"
+version = "6.0.12.20250915"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/7e/69/3c51b36d04da19b92f9e815be12753125bd8bc247ba0470a982e6979e71c/types_pyyaml-6.0.12.20250915.tar.gz", hash = "sha256:0f8b54a528c303f0e6f7165687dd33fafa81c807fcac23f632b63aa624ced1d3", size = 17522, upload-time = "2025-09-15T03:01:00.728Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/bd/e0/1eed384f02555dde685fff1a1ac805c1c7dcb6dd019c916fe659b1c1f9ec/types_pyyaml-6.0.12.20250915-py3-none-any.whl", hash = "sha256:e7d4d9e064e89a3b3cae120b4990cd370874d2bf12fa5f46c97018dd5d3c9ab6", size = 20338, upload-time = "2025-09-15T03:00:59.218Z" },
 ]
 
 [[package]]
