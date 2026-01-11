@@ -17,8 +17,10 @@
 - 自動追記: `make log-exp EXP=XXX CFG=YYY [AUTHOR=...] [RUN_DIR=...]`
 
 ## テスト/品質
-- フォーマット: `make fmt`
-- Lint: `make lint`
+- フォーマット: `make fmt` (Ruff)
+- Lint: `make lint` (Ruff)
+- 型チェック: `make type` (Ty)
+- 全チェック: `make check` (Lint + Type)
 - テスト: `make test`
 
 ## リポジトリ固有ルール

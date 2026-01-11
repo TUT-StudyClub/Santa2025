@@ -15,9 +15,12 @@ uv run python experiments/exp000_sample/run.py exp=001 exp.debug=true
 | 依存関係を揃える | `uv sync --dev` | 初回/依存変更後 |
 | Python を実行する | `uv run python <file.py> ...` | activate 不要 |
 | 実験を回す | `make uv-exp EXP=000 CFG=001` | `experiments/` を実行 |
-| ノートブックを開く | `make notebook` | JupyterLab |
+| ノートブックを開く | `make notebook` | Marimo |
 | フォーマット | `make fmt` | `ruff format` |
 | Lint | `make lint` | `ruff check` |
+| 型チェック | `make type` | `ty check` |
+| Importチェック | `make import-lint` | `lint-imports` |
+| 全チェック | `make check` | 上記全て + format |
 | テスト | `make test` | `pytest` |
 
 ## このリポジトリで大事にしていること

@@ -27,11 +27,12 @@ dependencies = [
 
 [dependency-groups]
 dev = [
-  "ipykernel",
-  "jupyterlab",
+  "import-linter>=2.9",
+  "marimo>=0.19.2",
   "pre-commit",
   "pytest",
   "ruff",
+  "ty>=0.0.11",
 ]
 
 [tool.setuptools]
@@ -41,16 +42,33 @@ package-dir = {"" = "src"}
 where = ["src"]
 
 [tool.ruff]
-line-length = 100
+exclude = [
+    ".git",
+    ".mypy_cache",
+    ".ruff_cache",
+    ".import_linter_cache",
+    ".venv",
+    "third_party",
+]
+line-length = 120
 target-version = "py310"
 
 [tool.ruff.lint]
 select = [
-  "E",  # pycodestyle errors
-  "F",  # pyflakes
-  "I",  # isort
-  "UP", # pyupgrade
+    "A",  # flake8-builtin
+    "B",  # flake8-bugbear
+    "E",  # pycodestyle error
+    "F",  # Pyflakes
+    "I",  # isort
+    "N",  # pep8-naming
+    "W",  # pycodestyle warning
+    "PL", # Pylint
+    "UP", # pyupgrade
 ]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+
+[tool.importlinter]
+root_package = "santa2025"
+
