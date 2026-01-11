@@ -460,10 +460,21 @@ if __name__ == "__main__":
     n_max = int(ls_cfg.get("n_max", 200))
     seed_base = int(ls_cfg.get("seed_base", 42))
     debug = bool(ls_cfg.get("debug", False))
+    iter_schedule = ls_cfg.get("iter_schedule", [])
+
+    def resolve_iters(group_id: int) -> int:
+        for entry in iter_schedule:
+            start = int(entry["start"])
+            end = int(entry["end"])
+            if start <= group_id <= end:
+                return int(entry["n_iters"])
+        return n_iters
 
     # グループごとに最適化
     print(f"\nOptimizing groups {n_min} to {n_max}...")
     print(f"  Iterations per group: {n_iters}")
+    if iter_schedule:
+        print(f"  Iteration schedule: {iter_schedule}")
     print(f"  Position delta: {pos_delta}")
     print(f"  Angle delta: {ang_delta}")
     print(f"  Use SA: {use_sa}")
@@ -499,13 +510,16 @@ if __name__ == "__main__":
         orig_score = calculate_score(orig_verts)
 
         seed = seed_base + n * 1000
+        group_iters = resolve_iters(n)
 
         if use_sa:
             opt_xs, opt_ys, opt_degs, opt_score = local_search_with_sa(
-                xs, ys, degs, n_iters, pos_delta, ang_delta, t_max, t_min, seed
+                xs, ys, degs, group_iters, pos_delta, ang_delta, t_max, t_min, seed
             )
         else:
-            opt_xs, opt_ys, opt_degs, opt_score = local_search_group(xs, ys, degs, n_iters, pos_delta, ang_delta, seed)
+            opt_xs, opt_ys, opt_degs, opt_score = local_search_group(
+                xs, ys, degs, group_iters, pos_delta, ang_delta, seed
+            )
 
         if opt_score < orig_score - 1e-9:
             improvement = orig_score - opt_score
@@ -530,10 +544,24 @@ if __name__ == "__main__":
     print(f"  Improved groups:   {improved_groups}")
     print("=" * 80)
 
-    # 保存
-    if final_score < baseline_total:
-        out_path = CONFIG["paths"]["output"]
-        save_submission(out_path, new_xs, new_ys, new_degs)
-        print(f"Saved to {out_path}")
+    baseline_improved = final_score < baseline_total - 1e-9
+    if baseline_improved:
+        print("Baseline比較: 改善あり")
     else:
-        print("No improvement - keeping baseline")
+        print("Baseline比較: 改善なし")
+
+    out_path = CONFIG["paths"]["output"]
+    if os.path.exists(out_path):
+        ref_xs, ref_ys, ref_degs = load_submission_data(out_path)
+        ref_score = calculate_total_score(ref_xs, ref_ys, ref_degs)
+        print(f"既存submissionスコア: {ref_score:.6f}")
+        if final_score < ref_score - 1e-9:
+            save_submission(out_path, new_xs, new_ys, new_degs)
+            print(f"submissionを更新しました: {out_path}")
+        else:
+            print("submissionより改善なしのため上書きしません")
+    elif baseline_improved:
+        save_submission(out_path, new_xs, new_ys, new_degs)
+        print(f"submissionを作成しました: {out_path}")
+    else:
+        print("Baselineから改善なしのためsubmissionを作成しません")

@@ -62,7 +62,7 @@ LOG_FILE ?= docs/experiments.md
 EXP_DIR := $(shell ls -d ./experiments/exp$(EXP)_* 2>/dev/null | head -1)
 EXP_NAME := $(notdir $(EXP_DIR))
 SUB_DIR := $(shell ls -dt ./outputs/runs/$(EXP_NAME)/$(CFG)/* 2>/dev/null | head -1)
-SUB_PATH := $(if $(SUB_FILE),$(SUB_FILE),$(SUB_DIR)/submission.csv)
+SUB_PATH := submissions/submission.csv
 RUN_DIR ?= $(SUB_DIR)
 LOG_CMD ?= uv run python $(EXP_DIR)/run.py exp=$(CFG)
 
@@ -75,9 +75,8 @@ uv-exp:
 	uv run python "$(EXP_DIR)/run.py" exp="$(CFG)"
 
 submit:
-	@test -n "$(EXP_DIR)" || (echo "experiment not found: exp$(EXP)_*" && exit 1)
 	@test -f "$(SUB_PATH)" || (echo "submission not found: $(SUB_PATH)" && exit 1)
-	kaggle competitions submit -c "$(COMP)" -f "$(SUB_PATH)" -m "$(MSG)"
+	uv run kaggle competitions submit -c "$(COMP)" -f "$(SUB_PATH)" -m "$(MSG)"
 
 log-exp:
 	@test -n "$(EXP_DIR)" || (echo "experiment not found: exp$(EXP)_*" && exit 1)

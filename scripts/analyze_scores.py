@@ -2,6 +2,7 @@
 各グループのスコアを分析して、改善の余地があるグループを特定する
 """
 
+import argparse
 import math
 
 import numpy as np
@@ -18,6 +19,8 @@ TIER_1_Y = 0.5
 TIER_2_Y = 0.25
 BASE_Y = 0.0
 TRUNK_BOTTOM_Y = -0.2
+
+RANGES = [(1, 20), (21, 60), (61, 100), (101, 150), (151, 200)]
 
 
 @njit(cache=True)
@@ -105,7 +108,11 @@ def load_submission_data(filepath: str) -> tuple[np.ndarray, np.ndarray, np.ndar
 
 
 def main():
-    filepath = "submissions/baseline.csv"
+    parser = argparse.ArgumentParser(description="提出ファイルのスコアを分析します。")
+    parser.add_argument("--input", default="submissions/baseline.csv", help="提出CSVのパス")
+    args = parser.parse_args()
+
+    filepath = args.input
     print(f"Analyzing: {filepath}")
 
     all_xs, all_ys, all_degs = load_submission_data(filepath)
@@ -123,6 +130,10 @@ def main():
         total += score
 
     print(f"\nTotal score: {total:.6f}")
+    print("\nRange totals:")
+    for start, end in RANGES:
+        range_score = sum(score for n, score, _ in scores if start <= n <= end)
+        print(f"  {start:>3}-{end:<3}: {range_score:.6f}")
     print(f"\n{'Group':>6} {'Score':>12} {'Side':>10} {'Efficiency':>12}")
     print("-" * 45)
 

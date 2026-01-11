@@ -1377,121 +1377,139 @@ if __name__ == "__main__":
     baseline_total = calculate_total_score(baseline_xs, baseline_ys, baseline_degs)
     print(f"Baseline total score: {baseline_total:.6f}")
 
-    # Generate Grid Configurations
-    grid_cfg = CONFIG["grid_search"]
-    grid_configs = []
+    postprocess_only = bool(CONFIG.get("postprocess_only", False))
+    skip_deletion = bool(CONFIG.get("skip_deletion", False))
 
-    n_seeds = len(CONFIG["initial_state"]["seeds"])
-    for ncols in range(grid_cfg["col_min"], grid_cfg["col_max"]):
-        for nrows in range(ncols, grid_cfg["row_max_limit"]):
-            n_trees = n_seeds * ncols * nrows
-            max_t = grid_cfg["max_trees"]
+    if postprocess_only:
+        print("Postprocess only: skipping SA optimization")
+        merged_xs = baseline_xs.copy()
+        merged_ys = baseline_ys.copy()
+        merged_degs = baseline_degs.copy()
+    else:
+        # Generate Grid Configurations
+        grid_cfg = CONFIG["grid_search"]
+        grid_configs = []
+        n_min = int(grid_cfg.get("n_min", 1))
+        n_max = int(grid_cfg.get("n_max", grid_cfg.get("max_trees", 200)))
+        n_max = max(n_min, min(n_max, grid_cfg.get("max_trees", 200)))
 
-            if 20 <= n_trees <= max_t:  # noqa: PLR2004
-                if (ncols, nrows, False, False) not in grid_configs:
-                    grid_configs.append((ncols, nrows, False, False))
-                if n_seeds > 1 and n_trees + ncols <= max_t:
-                    grid_configs.append((ncols, nrows, False, True))
-                if n_seeds > 1 and n_trees + nrows <= max_t:
-                    grid_configs.append((ncols, nrows, True, False))
-                if n_seeds > 1 and n_trees + nrows + ncols <= max_t:
-                    grid_configs.append((ncols, nrows, True, True))
+        n_seeds = len(CONFIG["initial_state"]["seeds"])
+        for ncols in range(grid_cfg["col_min"], grid_cfg["col_max"]):
+            for nrows in range(ncols, grid_cfg["row_max_limit"]):
+                n_trees = n_seeds * ncols * nrows
+                max_t = grid_cfg["max_trees"]
 
-    grid_configs = sorted(
-        list(set(grid_configs)),
-        key=lambda x: (n_seeds * x[0] * x[1] + (x[1] if x[2] else 0) + (x[0] if x[3] else 0)),
-    )
-    print(f"Generated {len(grid_configs)} grid configurations")
+                if 20 <= n_trees <= max_t and n_min <= n_trees <= n_max:  # noqa: PLR2004
+                    if (ncols, nrows, False, False) not in grid_configs:
+                        grid_configs.append((ncols, nrows, False, False))
+                    if n_seeds > 1 and n_trees + ncols <= max_t and n_trees + ncols <= n_max:
+                        grid_configs.append((ncols, nrows, False, True))
+                    if n_seeds > 1 and n_trees + nrows <= max_t and n_trees + nrows <= n_max:
+                        grid_configs.append((ncols, nrows, True, False))
+                    if n_seeds > 1 and n_trees + nrows + ncols <= max_t and n_trees + nrows + ncols <= n_max:
+                        grid_configs.append((ncols, nrows, True, True))
 
-    # Prepare Tasks
-    tasks = []
-    init_state = CONFIG["initial_state"]
-    seeds = init_state["seeds"]
-    a_init = init_state["translation_a"]
-    b_init = init_state["translation_b"]
-    shear_x_init = float(init_state.get("shear_x", 0.0))
-    shear_y_init = float(init_state.get("shear_y", 0.0))
-    sa_params = CONFIG["sa_params"]
-    multi_start = MULTI_START
-    polish_params = build_polish_params(sa_params, POLISH)
-    hill_params = build_hill_params(sa_params, HILL)
-
-    n_seeds = len(seeds)
-    for i, (ncols, nrows, append_x, append_y) in enumerate(grid_configs):
-        n_trees = n_seeds * ncols * nrows + (nrows if append_x else 0) + (ncols if append_y else 0)
-        if n_trees > 200:  # noqa: PLR2004
-            continue
-        seed = sa_params["random_seed_base"] + i * 1000
-        tasks.append(
-            (
-                ncols,
-                nrows,
-                append_x,
-                append_y,
-                seeds,
-                a_init,
-                b_init,
-                shear_x_init,
-                shear_y_init,
-                sa_params,
-                multi_start,
-                polish_params,
-                hill_params,
-                seed,
-            )
+        grid_configs = sorted(
+            list(set(grid_configs)),
+            key=lambda x: (n_seeds * x[0] * x[1] + (x[1] if x[2] else 0) + (x[0] if x[3] else 0)),
         )
+        print(f"Generated {len(grid_configs)} grid configurations (target n={n_min}-{n_max})")
 
-    # Execute Parallel Optimization
-    print(f"Running SA optimization on {len(tasks)} configurations...")
-    num_workers = min(cpu_count(), len(tasks))
-    t0 = time.time()
-    progress = bool(CONFIG.get("progress", True))
+        # Prepare Tasks
+        tasks = []
+        init_state = CONFIG["initial_state"]
+        seeds = init_state["seeds"]
+        a_init = init_state["translation_a"]
+        b_init = init_state["translation_b"]
+        shear_x_init = float(init_state.get("shear_x", 0.0))
+        shear_y_init = float(init_state.get("shear_y", 0.0))
+        sa_params = CONFIG["sa_params"]
+        multi_start = MULTI_START
+        polish_params = build_polish_params(sa_params, POLISH)
+        hill_params = build_hill_params(sa_params, HILL)
 
-    results = []
-    with Pool(num_workers) as pool:
-        for result in tqdm(
-            pool.imap_unordered(optimize_grid_config, tasks),
-            total=len(tasks),
-            desc="Optimizing",
-            disable=not progress,
-        ):
-            results.append(result)
+        n_seeds = len(seeds)
+        for i, (ncols, nrows, append_x, append_y) in enumerate(grid_configs):
+            n_trees = n_seeds * ncols * nrows + (nrows if append_x else 0) + (ncols if append_y else 0)
+            if n_trees > 200:  # noqa: PLR2004
+                continue
+            seed = sa_params["random_seed_base"] + i * 1000
+            tasks.append(
+                (
+                    ncols,
+                    nrows,
+                    append_x,
+                    append_y,
+                    seeds,
+                    a_init,
+                    b_init,
+                    shear_x_init,
+                    shear_y_init,
+                    sa_params,
+                    multi_start,
+                    polish_params,
+                    hill_params,
+                    seed,
+                )
+            )
 
-    print(f"SA optimization completed in {time.time() - t0:.1f}s")
+        # Execute Parallel Optimization
+        print(f"Running SA optimization on {len(tasks)} configurations...")
+        num_workers = min(cpu_count(), len(tasks))
+        t0 = time.time()
+        progress = bool(CONFIG.get("progress", True))
 
-    # Process Results
-    new_trees = {}
-    improved_count = 0
-    for n_trees, score, tree_data in results:
-        idx = sum(range(1, n_trees))
-        baseline_vertices = [
-            get_tree_vertices(baseline_xs[idx + i], baseline_ys[idx + i], baseline_degs[idx + i])
-            for i in range(n_trees)
-        ]
-        baseline_score = calculate_score_numba(baseline_vertices)
+        results = []
+        with Pool(num_workers) as pool:
+            for result in tqdm(
+                pool.imap_unordered(optimize_grid_config, tasks),
+                total=len(tasks),
+                desc="Optimizing",
+                disable=not progress,
+            ):
+                results.append(result)
 
-        if score < baseline_score:
-            new_trees[n_trees] = tree_data
-            if baseline_score - score > 1e-6:  # noqa: PLR2004
-                improved_count += 1
-                print(f"  n={n_trees}: {score:.6f} (baseline: {baseline_score:.6f})")
+        print(f"SA optimization completed in {time.time() - t0:.1f}s")
 
-    # Merge with Baseline
-    print("Merging with baseline...")
-    merged_xs = baseline_xs.copy()
-    merged_ys = baseline_ys.copy()
-    merged_degs = baseline_degs.copy()
+        # Process Results
+        new_trees = {}
+        improved_count = 0
+        for n_trees, score, tree_data in results:
+            idx = sum(range(1, n_trees))
+            baseline_vertices = [
+                get_tree_vertices(baseline_xs[idx + i], baseline_ys[idx + i], baseline_degs[idx + i])
+                for i in range(n_trees)
+            ]
+            baseline_score = calculate_score_numba(baseline_vertices)
 
-    for n_trees, tree_data in new_trees.items():
-        idx = sum(range(1, n_trees))
-        for i in range(n_trees):
-            merged_xs[idx + i] = tree_data[i][0]
-            merged_ys[idx + i] = tree_data[i][1]
-            merged_degs[idx + i] = tree_data[i][2]
+            if score < baseline_score:
+                new_trees[n_trees] = tree_data
+                if baseline_score - score > 1e-6:  # noqa: PLR2004
+                    improved_count += 1
+                    print(f"  n={n_trees}: {score:.6f} (baseline: {baseline_score:.6f})")
+
+        # Merge with Baseline
+        print("Merging with baseline...")
+        merged_xs = baseline_xs.copy()
+        merged_ys = baseline_ys.copy()
+        merged_degs = baseline_degs.copy()
+
+        for n_trees, tree_data in new_trees.items():
+            idx = sum(range(1, n_trees))
+            for i in range(n_trees):
+                merged_xs[idx + i] = tree_data[i][0]
+                merged_ys[idx + i] = tree_data[i][1]
+                merged_degs[idx + i] = tree_data[i][2]
 
     # Deletion Cascade
-    print("Applying tree deletion cascade...")
-    final_xs, final_ys, final_degs, _ = deletion_cascade_numba(merged_xs, merged_ys, merged_degs)
+    if skip_deletion:
+        print("Skipping tree deletion cascade...")
+        final_xs = merged_xs.copy()
+        final_ys = merged_ys.copy()
+        final_degs = merged_degs.copy()
+    else:
+        print("Applying tree deletion cascade...")
+        final_xs, final_ys, final_degs, _ = deletion_cascade_numba(merged_xs, merged_ys, merged_degs)
 
     # Shrink step
     shrink_cfg = SHRINK
@@ -1521,15 +1539,31 @@ if __name__ == "__main__":
     print(f"  Total improvement:   {baseline_total - final_score:+.6f}")
     print("=" * 80)
 
-    # Save Results
-    if final_score < baseline_total:
-        out_path = CONFIG["paths"]["output"]
+    baseline_improved = final_score < baseline_total - 1e-9
+    if baseline_improved:
+        print("Baseline比較: 改善あり")
+    else:
+        print("Baseline比較: 改善なし")
+
+    out_path = CONFIG["paths"]["output"]
+    if os.path.exists(out_path):
+        ref_xs, ref_ys, ref_degs = load_submission_data(out_path, CONFIG["tree_shape"])
+        ref_score = calculate_total_score(ref_xs, ref_ys, ref_degs)
+        print(f"  既存submissionスコア: {ref_score:.6f}")
+        should_save = final_score < ref_score - 1e-9
+        no_save_reason = "submissionより改善なしのため上書きしません"
+    else:
+        ref_score = baseline_total
+        should_save = baseline_improved
+        no_save_reason = "Baselineから改善なしのためsubmissionを作成しません"
+
+    if should_save:
         save_submission(out_path, final_xs, final_ys, final_degs)
-        print(f"Saved to {out_path}")
+        print(f"submissionを更新しました: {out_path}")
 
         script_path = CONFIG["paths"].get("overlap_script", "")
         if script_path and os.path.exists(script_path):
             cmd = f"python {script_path} {baseline_path} {out_path}"
             os.system(cmd)
     else:
-        print("No improvement - keeping baseline")
+        print(no_save_reason)
