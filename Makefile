@@ -76,7 +76,7 @@ uv-exp:
 
 submit:
 	@test -f "$(SUB_PATH)" || (echo "submission not found: $(SUB_PATH)" && exit 1)
-	kaggle competitions submit -c "$(COMP)" -f "$(SUB_PATH)" -m "$(MSG)"
+	uv run kaggle competitions submit -c "$(COMP)" -f "$(SUB_PATH)" -m "$(MSG)"
 
 log-exp:
 	@test -n "$(EXP_DIR)" || (echo "experiment not found: exp$(EXP)_*" && exit 1)
