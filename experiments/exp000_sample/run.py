@@ -51,7 +51,7 @@ def repo_root() -> Path:
 
 def init_output_dir(cfg: Config) -> Path:
     major = Path(__file__).resolve().parent.name  # exp000_sample
-    minor = HydraConfig.get().runtime.choices.exp  # 000, 001, ...
+    minor = HydraConfig.get().runtime.choices.exp  # type: ignore
     run_id = datetime.now().strftime("%Y%m%d_%H%M%S")
 
     output_dir = repo_root() / "outputs" / "runs" / major / minor / run_id

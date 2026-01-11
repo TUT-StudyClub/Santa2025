@@ -15,9 +15,12 @@ uv run python experiments/exp000_sample/run.py exp=001 exp.debug=true
 | 依存関係を揃える | `uv sync --dev` | 初回/依存変更後 |
 | Python を実行する | `uv run python <file.py> ...` | activate 不要 |
 | 実験を回す | `make uv-exp EXP=000 CFG=001` | `experiments/` を実行 |
-| ノートブックを開く | `make notebook` | JupyterLab |
+| ノートブックを開く | `make notebook` | Marimo |
 | フォーマット | `make fmt` | `ruff format` |
 | Lint | `make lint` | `ruff check` |
+| 型チェック | `make type` | `ty check` |
+| Importチェック | `make import-lint` | `lint-imports` |
+| 全チェック | `make check` | 上記全て + format |
 | テスト | `make test` | `pytest` |
 
 ## このリポジトリで大事にしていること
@@ -211,6 +214,20 @@ uv run python scripts/theoretical_analysis.py
 - 異なるパッキング効率での理論的最小スコア
 - グループごとのスコア、サイド長、幅、高さ、アスペクト比、効率
 - アスペクト比が悪い（改善の余地がある）グループの特定
+
+### `visualize_experiments.py`
+実験ログのスコア推移や、提出ファイルの配置図を可視化します。
+
+**基本実行 (メトリクス + N=200の配置図):**
+```bash
+uv run scripts/visualize_experiments.py
+```
+
+**その他のオプション:**
+- `--group 50`: N=50 の配置図のみ出力
+- `--group-all`: N=1〜200 全ての配置図を出力
+- `--submission-path submissions/best.csv`: 特定の提出ファイルを指定
+
 
 ## 主要ディレクトリ
 - `experiments/`: 実験（major/minor で再現）

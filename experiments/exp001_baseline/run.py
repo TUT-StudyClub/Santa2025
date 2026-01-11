@@ -93,7 +93,7 @@ def repo_root() -> Path:
 
 def init_output_dir(cfg: Config) -> Path:
     major = Path(__file__).resolve().parent.name
-    minor = HydraConfig.get().runtime.choices.exp
+    minor = HydraConfig.get().runtime.choices.exp  # type: ignore
     run_id = datetime.now().strftime("%Y%m%d_%H%M%S")
 
     output_dir = repo_root() / "outputs" / "runs" / major / minor / run_id
@@ -257,7 +257,7 @@ def collides_with_any(
     return False
 
 
-def find_position_along_vector(
+def find_position_along_vector(  # noqa: PLR0913
     polygon: Polygon,
     *,
     direction_angle: float,
@@ -319,7 +319,7 @@ def generate_weighted_angle(rng: random.Random) -> float:
             return angle
 
 
-def initialize_trees(
+def initialize_trees(  # noqa: PLR0913
     num_trees: int,
     *,
     rng: random.Random,
@@ -352,11 +352,7 @@ def initialize_trees(
             for _ in range(max(cfg.attempts_per_tree, 1)):
                 angle_deg = rng.uniform(0, 360)
                 rotated = affinity.rotate(base_polygon, float(angle_deg), origin=(0, 0))
-                direction_angle = (
-                    generate_weighted_angle(rng)
-                    if cfg.angle_weighted
-                    else rng.uniform(0, 2 * math.pi)
-                )
+                direction_angle = generate_weighted_angle(rng) if cfg.angle_weighted else rng.uniform(0, 2 * math.pi)
 
                 px, py, candidate_poly = find_position_along_vector(
                     rotated,
@@ -414,7 +410,7 @@ def compact_trees(
     scale_factor: Decimal,
     cfg: ExpConfig,
 ) -> None:
-    if cfg.compact_iters <= 0 or len(placed_trees) < 2:
+    if cfg.compact_iters <= 0 or len(placed_trees) < 2:  # noqa: PLR2004
         return
 
     step_in = Decimal(str(cfg.compact_step_in))
@@ -430,7 +426,7 @@ def compact_trees(
             dx = center_x - tree.center_x
             dy = center_y - tree.center_y
             dist = math.hypot(float(dx), float(dy))
-            if dist < 1e-9:
+            if dist < 1e-9:  # noqa: PLR2004
                 continue
 
             vx = Decimal(str(float(dx) / dist))
@@ -475,7 +471,7 @@ def reinsert_trees(
     scale_factor: Decimal,
     cfg: ExpConfig,
 ) -> None:
-    if cfg.reinsert_iters <= 0 or len(placed_trees) < 2:
+    if cfg.reinsert_iters <= 0 or len(placed_trees) < 2:  # noqa: PLR2004
         return
 
     start_radius = Decimal(str(cfg.start_radius))
@@ -490,9 +486,7 @@ def reinsert_trees(
         for idx in order:
             other_polygons = [tree.polygon for i, tree in enumerate(placed_trees) if i != idx]
             tree_index = STRtree(other_polygons) if other_polygons else None
-            current_bounds = (
-                compute_bounds_from_polygons(other_polygons) if other_polygons else None
-            )
+            current_bounds = compute_bounds_from_polygons(other_polygons) if other_polygons else None
 
             baseline_bounds = merge_bounds(current_bounds, placed_trees[idx].polygon.bounds)
             best_bounds = baseline_bounds
@@ -506,11 +500,7 @@ def reinsert_trees(
                     angle_deg = float(placed_trees[idx].angle)
 
                 rotated = affinity.rotate(base_polygon, float(angle_deg), origin=(0, 0))
-                direction_angle = (
-                    generate_weighted_angle(rng)
-                    if cfg.angle_weighted
-                    else rng.uniform(0, 2 * math.pi)
-                )
+                direction_angle = generate_weighted_angle(rng) if cfg.angle_weighted else rng.uniform(0, 2 * math.pi)
                 px, py, candidate_poly = find_position_along_vector(
                     rotated,
                     direction_angle=direction_angle,
@@ -546,7 +536,7 @@ def anneal_trees(
     scale_factor: Decimal,
     cfg: ExpConfig,
 ) -> None:
-    if cfg.anneal_iters <= 0 or len(placed_trees) < 2:
+    if cfg.anneal_iters <= 0 or len(placed_trees) < 2:  # noqa: PLR2004
         return
 
     polygons = [tree.polygon for tree in placed_trees]
@@ -620,9 +610,7 @@ def recenter_trees(
         return
 
     limit = Decimal(str(xy_limit))
-    max_after_shift = max(
-        max(abs(tree.center_x - center_x), abs(tree.center_y - center_y)) for tree in placed_trees
-    )
+    max_after_shift = max(max(abs(tree.center_x - center_x), abs(tree.center_y - center_y)) for tree in placed_trees)
     if max_after_shift > limit:
         return
 
@@ -642,11 +630,11 @@ def plot_results(
     scale_factor: Decimal,
     output_path: Path,
 ) -> None:
-    import matplotlib.pyplot as plt
-    from matplotlib.patches import Rectangle
+    import matplotlib.pyplot as plt  # noqa: PLC0415
+    from matplotlib.patches import Rectangle  # noqa: PLC0415
 
     _, ax = plt.subplots(figsize=(6, 6))
-    colors = plt.cm.viridis([i / num_trees for i in range(num_trees)])
+    colors = plt.cm.viridis([i / num_trees for i in range(num_trees)])  # type: ignore
 
     bounds = compute_bounds(placed_trees)
 
@@ -654,7 +642,7 @@ def plot_results(
         x_scaled, y_scaled = tree.polygon.exterior.xy
         x = [Decimal(val) / scale_factor for val in x_scaled]
         y = [Decimal(val) / scale_factor for val in y_scaled]
-        ax.plot(x, y, color=colors[i])
+        ax.plot(x, y, color=colors[i])  # type: ignore
         ax.fill(x, y, alpha=0.5, color=colors[i])
 
     minx = Decimal(bounds[0]) / scale_factor
@@ -735,7 +723,7 @@ def summarize_metrics(
 
 
 @hydra.main(version_base=None, config_path=".", config_name="config")
-def main(cfg: Config) -> None:
+def main(cfg: Config) -> None:  # noqa: PLR0915
     output_dir = init_output_dir(cfg)
     logger = get_logger(__name__, output_dir)
 
@@ -836,9 +824,7 @@ def main(cfg: Config) -> None:
             for tree in best_trees:
                 tree_data.append([tree.center_x, tree.center_y, tree.angle])
 
-            candidates = (
-                [trees for trees, _ in new_candidates[:beam_width]] if use_beam else [best_trees]
-            )
+            candidates = [trees for trees, _ in new_candidates[:beam_width]] if use_beam else [best_trees]
 
     metrics = summarize_metrics(side_lengths, cfg.exp)
     (output_dir / "metrics.json").write_text(

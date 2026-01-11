@@ -95,14 +95,10 @@ def polygon_bounds(vertices: np.ndarray) -> tuple[float, float, float, float]:
     max_x, max_y = vertices[0, 0], vertices[0, 1]
     for i in range(1, vertices.shape[0]):
         x, y = vertices[i, 0], vertices[i, 1]
-        if x < min_x:
-            min_x = x
-        if x > max_x:
-            max_x = x
-        if y < min_y:
-            min_y = y
-        if y > max_y:
-            max_y = y
+        min_x = min(min_x, x)
+        max_x = max(max_x, x)
+        min_y = min(min_y, y)
+        max_y = max(max_y, y)
     return min_x, min_y, max_x, max_y
 
 
@@ -121,13 +117,13 @@ def point_in_polygon(px: float, py: float, vertices: np.ndarray) -> bool:
 
 
 @njit(cache=True, fastmath=True)
-def segments_intersect(
+def segments_intersect(  # noqa: PLR0913
     p1x: float, p1y: float, p2x: float, p2y: float, p3x: float, p3y: float, p4x: float, p4y: float
 ) -> bool:
     d1x, d1y = p2x - p1x, p2y - p1y
     d2x, d2y = p4x - p3x, p4y - p3y
     det = d1x * d2y - d1y * d2x
-    if abs(det) < 1e-10:
+    if abs(det) < 1e-10:  # noqa: PLR2004
         return False
     t = ((p3x - p1x) * d2y - (p3y - p1y) * d2x) / det
     u = ((p3x - p1x) * d1y - (p3y - p1y) * d1x) / det
@@ -190,14 +186,10 @@ def compute_bounding_box(all_vertices: list[np.ndarray]) -> tuple[float, float, 
     max_x, max_y = -math.inf, -math.inf
     for verts in all_vertices:
         x1, y1, x2, y2 = polygon_bounds(verts)
-        if x1 < min_x:
-            min_x = x1
-        if y1 < min_y:
-            min_y = y1
-        if x2 > max_x:
-            max_x = x2
-        if y2 > max_y:
-            max_y = y2
+        min_x = min(min_x, x1)
+        min_y = min(min_y, y1)
+        max_x = max(max_x, x2)
+        max_y = max(max_y, y2)
     return min_x, min_y, max_x, max_y
 
 
@@ -307,15 +299,15 @@ def generate_diagonal_pattern(
 
 
 @njit(cache=True)
-def optimize_pattern_sa(
+def optimize_pattern_sa(  # noqa: PLR0913, PLR0912, PLR0915, N803
     init_xs: np.ndarray,
     init_ys: np.ndarray,
     init_degs: np.ndarray,
     n_iters: int,
     pos_delta: float,
     ang_delta: float,
-    T_max: float,
-    T_min: float,
+    t_max: float,
+    t_min: float,
     random_seed: int,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray, float]:
     """SA最適化"""
@@ -330,7 +322,7 @@ def optimize_pattern_sa(
 
     # 重なりを解消
     spread = 1.0
-    while has_any_overlap(all_vertices) and spread < 5.0:
+    while has_any_overlap(all_vertices) and spread < 5.0:  # noqa: PLR2004
         spread *= 1.1
         for i in range(n):
             xs[i] = init_xs[i] * spread
@@ -346,10 +338,10 @@ def optimize_pattern_sa(
     best_ys = ys.copy()
     best_degs = degs.copy()
 
-    T_factor = -math.log(T_max / T_min)
+    t_factor = -math.log(t_max / t_min)
 
     for step in range(n_iters):
-        T = T_max * math.exp(T_factor * step / n_iters)
+        temp = t_max * math.exp(t_factor * step / n_iters)
         decay = 1.0 - 0.8 * (step / n_iters)
         cur_pos = pos_delta * decay
         cur_ang = ang_delta * decay
@@ -359,11 +351,11 @@ def optimize_pattern_sa(
 
         old_x, old_y, old_deg = xs[tree_idx], ys[tree_idx], degs[tree_idx]
 
-        if move_type == 0 or move_type == 3:
+        if move_type in {0, 3}:
             xs[tree_idx] += (np.random.random() * 2.0 - 1.0) * cur_pos
-        if move_type == 1 or move_type == 3:
+        if move_type in {1, 3}:
             ys[tree_idx] += (np.random.random() * 2.0 - 1.0) * cur_pos
-        if move_type == 2 or move_type == 3:
+        if move_type in {2, 3}:
             degs[tree_idx] = (degs[tree_idx] + (np.random.random() * 2.0 - 1.0) * cur_ang) % 360.0
 
         new_verts = get_tree_vertices(xs[tree_idx], ys[tree_idx], degs[tree_idx])
@@ -382,7 +374,7 @@ def optimize_pattern_sa(
         new_score = calculate_score(all_vertices)
         delta = new_score - current_score
 
-        if delta < 0 or (T > 1e-10 and np.random.random() < math.exp(-delta / T)):
+        if delta < 0 or (temp > 1e-10 and np.random.random() < math.exp(-delta / temp)):  # noqa: PLR2004
             current_score = new_score
             if new_score < best_score:
                 best_score = new_score
@@ -415,9 +407,7 @@ def load_submission_data(filepath: str) -> tuple[np.ndarray, np.ndarray, np.ndar
     return np.array(all_xs), np.array(all_ys), np.array(all_degs)
 
 
-def save_submission(
-    filepath: str, all_xs: np.ndarray, all_ys: np.ndarray, all_degs: np.ndarray
-) -> None:
+def save_submission(filepath: str, all_xs: np.ndarray, all_ys: np.ndarray, all_degs: np.ndarray) -> None:
     rows = []
     idx = 0
     for n in range(1, 201):
@@ -438,10 +428,7 @@ def calculate_total_score(all_xs: np.ndarray, all_ys: np.ndarray, all_degs: np.n
     total = 0.0
     for n in range(1, 201):
         start = n * (n - 1) // 2
-        vertices = [
-            get_tree_vertices(all_xs[start + i], all_ys[start + i], all_degs[start + i])
-            for i in range(n)
-        ]
+        vertices = [get_tree_vertices(all_xs[start + i], all_ys[start + i], all_degs[start + i]) for i in range(n)]
         total += calculate_score(vertices)
     return total
 
@@ -466,8 +453,8 @@ if __name__ == "__main__":
     n_iters = int(opt_cfg["n_iters"])
     pos_delta = float(opt_cfg["pos_delta"])
     ang_delta = float(opt_cfg["ang_delta"])
-    T_max = float(opt_cfg["T_max"])
-    T_min = float(opt_cfg["T_min"])
+    t_max = float(opt_cfg["T_max"])
+    t_min = float(opt_cfg["T_min"])
     seed_base = int(opt_cfg.get("seed_base", 42))
 
     # Two-stage Optimizationの設定
@@ -497,8 +484,7 @@ if __name__ == "__main__":
 
         # ベースライン(現状)のスコア算出
         orig_verts = [
-            get_tree_vertices(new_xs[start_idx + i], new_ys[start_idx + i], new_degs[start_idx + i])
-            for i in range(n)
+            get_tree_vertices(new_xs[start_idx + i], new_ys[start_idx + i], new_degs[start_idx + i]) for i in range(n)
         ]
         orig_score = calculate_score(orig_verts)
 
@@ -541,8 +527,8 @@ if __name__ == "__main__":
                             screening_iters,
                             pos_delta,
                             ang_delta,
-                            T_max,
-                            T_min,
+                            t_max,
+                            t_min,
                             seed,
                         )
 
@@ -570,8 +556,8 @@ if __name__ == "__main__":
                 final_iters,
                 pos_delta,
                 ang_delta,
-                T_max,
-                T_min,
+                t_max,
+                t_min,
                 best_seed,
             )
 
@@ -594,8 +580,8 @@ if __name__ == "__main__":
             final_iters,
             pos_delta,
             ang_delta,
-            T_max,
-            T_min,
+            t_max,
+            t_min,
             seed_base + n * 9999,
         )
 

@@ -1,12 +1,11 @@
-.PHONY: help venv sync fmt lint test clean notebook exp uv-exp submit log-exp docker-build docker-bash docker-jupyter docker-down
+.PHONY: help venv sync fmt lint type check import-lint test clean notebook exp uv-exp submit log-exp docker-build docker-bash docker-jupyter docker-down
 
 help:
 	@echo "make venv      - create .venv and install deps"
 	@echo "make sync      - install deps with uv (recommended)"
-	@echo "make fmt       - format (ruff)"
-	@echo "make lint      - lint (ruff)"
+	@echo "make check     - run all checks (ruff lint & format, ty, import-linter)"
 	@echo "make test      - run tests (pytest)"
-	@echo "make notebook  - start jupyter lab"
+	@echo "make notebook  - start marimo editor"
 	@echo "make exp EXP=000 CFG=000 - run experiment (requires env active)"
 	@echo "make uv-exp EXP=000 CFG=000 - run experiment via uv"
 	@echo "make submit EXP=000 CFG=000 [COMP=santa-2025] [MSG=...] [SUB_FILE=...] - submit latest"
@@ -26,17 +25,32 @@ venv:
 sync:
 	uv sync --dev
 
+# Shortcuts
 fmt:
-	ruff format .
+	uv run ruff check --select I --fix .
+	uv run ruff format .
 
 lint:
-	ruff check .
+	uv run ruff check .
+
+type:
+	uv run ty check .
+
+import-lint:
+	uv run lint-imports
+
+# Aggregated check (User requested style)
+check:
+	uv run ruff check .
+	uv run ruff format .
+	uv run ty check .
+	uv run lint-imports
 
 test:
-	pytest -q
+	uv run pytest
 
 notebook:
-	jupyter lab
+	uv run marimo edit
 
 EXP ?= 000
 CFG ?= 000
