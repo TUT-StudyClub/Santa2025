@@ -5,11 +5,12 @@
 
 ## 実験結果まとめ（日本語）
 - 現時点の最良スコア: 70.836885（exp007_intensive exp=000）
-- スコア推移: 178.9197 → 159.3497 → 117.2827 → 109.8679 → 70.935929406660 → 82.898630 → 70.924429 → 70.909422580984 → 70.892099 → 70.836885
+- スコア推移: 178.9197 → 159.3497 → 117.2827 → 109.8679 → 70.935929406660 → 82.898630 → 70.924429 → 70.909422580984 → 70.892099 → 70.836885 → 70.781495651088
 - 目標スコア: 69
 
 | Date | Author | Branch/PR | Change | Seed | CV | LB | Command/Config | Note |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| 2026-01-11 | haruto | exp/kotou_20260111 | exp0012_vertex_penalty 頂点ペナルティ法の実装 | 42 | - | score=70.781495651088 | `python ./experiments/exp0012_vertex_penalty/run.py` | - |
 | 2026-01-10 | haruto | exp/kotou_20260110 | exp0011_dense_pack グリッド形状の探索範囲を拡大 | 42 | - | score=70.829248956305 | `python ./experiments/exp0011_dense_pack/run.py` | - |
 | 2026-01-08 | yuhei | - | exp007_intensive 強化SA + 回転後shrink | 42 | - | score=70.836885 | `uv run ./experiments/exp007_intensive/run.py exp=000` | baseline.csv, 強化パラメータ |
 | 2026-01-05 | yuhei | - | exp004_baseline anisotropic shrink + rotate | 42 | - | score=70.892099 | `uv run ./experiments/exp004_baseline/run.py exp=007` | baseline.csv, shrink_aniso, rotate |
