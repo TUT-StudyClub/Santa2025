@@ -27,6 +27,8 @@
 - Kaggle トークンは `~/.kaggle/kaggle.json` に配置
 - `.env` などの秘密情報はコミットしない
 - 提出ファイルは `submissions/` に置く（例: `submissions/submission.csv`）
+- 過去の実験ファイルを修正しない
+    - 過去の実験を用いる場合は、ymlファイルを変更する
 
 ## ディレクトリ構成
 - `experiments/`: 実験本体と設定
