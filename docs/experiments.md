@@ -5,7 +5,7 @@
 
 ## 実験結果まとめ（日本語）
 - 現時点の最良スコア: 70.836885（exp007_intensive exp=000）
-- スコア推移: 178.9197 → 159.3497 → 117.2827 → 109.8679 → 70.935929406660 → 82.898630 → 70.924429 → 70.909422580984 → 70.892099 → 70.836885 → 70.781495651088
+- スコア推移: 178.9197 → 159.3497 → 117.2827 → 109.8679 → 70.935929406660 → 82.898630 → 70.924429 → 70.909422580984 → 70.892099 → 70.836885 → 70.781495651088 → 70.778910759459
 - 目標スコア: 69
 
 | Date | Author | Branch/PR | Change | Seed | CV | LB | Command/Config | Note |
@@ -15,6 +15,7 @@
 | 2026-01-12 | yuhei | - | exp007_intensive 非対称シード | 42 | - | score=70.781236 | `uv run python experiments/exp007_intensive/run.py exp=003` | 改善あり（+0.000260）だが既存submission=70.779244のため上書きなし |
 | 2026-01-11 | yuhei | - | exp011_dense_pack 非対称グリッド | 42 | - | score=70.781496 | `uv run python experiments/exp011_dense_pack/run.py exp=003` | 改善なし、既存submission=70.779244で上書きなし |
 | 2026-01-11 | yuhei | - | exp011_dense_pack 非対称ジッター | 42 | - | score=70.781496 | `uv run python experiments/exp011_dense_pack/run.py exp=002` | 改善なし、既存submission=70.779244で上書きなし |
+| 2026-01-12 | haruto | exp/kotou_20260112 | exp0012_vertex_penalty 連続ペナルティ法の実装 | 42 | - | score=70.778910759459 | `python ./experiments/exp0012_vertex_penalty/run.py` | - |
 | 2026-01-11 | yuhei | - | exp007_intensive 21-100限定 | 42 | - | score=70.781236 | `uv run ./experiments/exp007_intensive/run.py exp=002` | baseline 70.781496 → 70.781236（+0.000260）、submission.csv 出力 |
 | 2026-01-11 | haruto | exp/kotou_20260111 | exp0012_vertex_penalty 頂点ペナルティ法の実装 | 42 | - | score=70.781495651088 | `python ./experiments/exp0012_vertex_penalty/run.py` | - |
 | 2026-01-10 | haruto | exp/kotou_20260110 | exp0011_dense_pack グリッド形状の探索範囲を拡大 | 42 | - | score=70.829248956305 | `python ./experiments/exp0011_dense_pack/run.py` | - |
