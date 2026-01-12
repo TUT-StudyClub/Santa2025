@@ -439,37 +439,51 @@ def calculate_total_score(all_xs: np.ndarray, all_ys: np.ndarray, all_degs: np.n
 
 
 @njit(cache=True, fastmath=True)
-def count_overlap_penalty(all_vertices: list[np.ndarray]) -> int:
+def calculate_continuous_penalty(all_vertices: list[np.ndarray]) -> float:
     """
-    重なりエネルギー（ペナルティ）を計算する。
-    単純なBooleanではなく、「いくつの頂点が他人の内部に入り込んでいるか」を返す。
-    値が大きいほど激しく重なっている状態。0なら重なりなし。
+    めり込み深度（Penetration Depth）の総和を計算する。
+    戻り値: float (0.0なら重なりなし)
     """
-    penalty = 0
+    total_depth = 0.0
     n = len(all_vertices)
 
-    # 全ペア総当たり
     for i in range(n):
         for j in range(n):
             if i == j:
                 continue
 
-            # バウンディングボックスで高速化
+            # バウンディングボックスによる早期枝刈り
             min_x1, min_y1, max_x1, max_y1 = polygon_bounds(all_vertices[i])
             min_x2, min_y2, max_x2, max_y2 = polygon_bounds(all_vertices[j])
 
-            if max_x1 < min_x2 or max_x2 < min_x1 or max_y1 < min_y1 or max_y2 < min_y1:
+            if max_x1 < min_x2 or max_x2 < min_x1 or max_y1 < min_y2 or max_y2 < min_y1:
                 continue
 
-            # 頂点包括チェック
+            # 詳細計算
             verts_i = all_vertices[i]
             verts_j = all_vertices[j]
+            n_j = verts_j.shape[0]
 
+            # 「ポリゴンiの頂点」が「ポリゴンj」に入り込んでいるか？
             for k in range(verts_i.shape[0]):
-                if point_in_polygon(verts_i[k, 0], verts_i[k, 1], verts_j):
-                    penalty += 1
+                px, py = verts_i[k, 0], verts_i[k, 1]
 
-    return penalty
+                # 重なっている場合のみ距離を計算
+                if point_in_polygon(px, py, verts_j):
+                    # 脱出に必要な「最短距離」を探す
+                    min_dist_sq = 1e15
+
+                    for m in range(n_j):
+                        m_next = (m + 1) % n_j
+                        d_sq = point_to_segment_dist_sq(
+                            px, py, verts_j[m, 0], verts_j[m, 1], verts_j[m_next, 0], verts_j[m_next, 1]
+                        )
+                        min_dist_sq = min(d_sq, min_dist_sq)
+
+                    # 距離の二乗から距離へ戻して加算
+                    total_depth += math.sqrt(min_dist_sq)
+
+    return total_depth
 
 
 @njit(cache=True, fastmath=True)
@@ -477,46 +491,41 @@ def optimize_overlap_resolution(
     init_xs: np.ndarray,
     init_ys: np.ndarray,
     init_degs: np.ndarray,
-    target_scale: float,  # 圧縮率（例: 0.98）
+    target_scale: float,
     n_iters: int,
     pos_delta: float,
     ang_delta: float,
     seed: int,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray, bool]:
-    """
-    物理ベースの重なり解消（Squeeze & Resolve）
-    戻り値の bool は「重なりを完全に解消できたか(True/False)」
-    """
+    # 物理ベースのSqueeze & Resolveソルバー (連続ペナルティ版)
     np.random.seed(seed)
     n = len(init_xs)
 
-    # 強制圧縮
+    # 1. Squeeze
     cx = np.mean(init_xs)
     cy = np.mean(init_ys)
 
     xs = (init_xs - cx) * target_scale + cx
-    ys = (init_ys - cy) + target_scale + cy
+    ys = (init_ys - cy) * target_scale + cy
     degs = init_degs.copy()
 
-    # 現在の頂点を計算
     all_vertices = [get_tree_vertices(xs[i], ys[i], degs[i]) for i in range(n)]
 
-    # 現在のペナルティを計算
-    current_penalty = count_overlap_penalty(all_vertices)
+    # 連続値関数の呼び出し
+    current_penalty = calculate_continuous_penalty(all_vertices)
 
-    if current_penalty == 0:
+    if current_penalty <= 1e-9:
         return xs, ys, degs, True
 
-    # Resolve Loop(ペナルティの増える移動を受容しない)
+    # 2. Resolve Loop
     for _ in range(n_iters):
-        if current_penalty == 0:
+        if current_penalty <= 1e-9:
             return xs, ys, degs, True
 
         idx = np.random.randint(0, n)
         old_x, old_y, old_deg = xs[idx], ys[idx], degs[idx]
         old_verts = all_vertices[idx]
 
-        # 移動
         move_type = np.random.randint(0, 3)
         if move_type == 0:
             xs[idx] += (np.random.random() * 2.0 - 1.0) * pos_delta
@@ -525,20 +534,44 @@ def optimize_overlap_resolution(
         else:
             degs[idx] = (degs[idx] + (np.random.random() * 2.0 - 1.0) * ang_delta) % 360.0
 
-        # 部分更新後の頂点
-        new_verts_i = get_tree_vertices(xs[idx], ys[idx], degs[idx])
+        all_vertices[idx] = get_tree_vertices(xs[idx], ys[idx], degs[idx])
 
-        all_vertices[idx] = new_verts_i
-        new_penalty = count_overlap_penalty(all_vertices)
+        # 連続値関数の呼び出し
+        new_penalty = calculate_continuous_penalty(all_vertices)
 
-        if new_penalty < current_penalty:
+        if new_penalty <= current_penalty:
             current_penalty = new_penalty
         else:
             xs[idx], ys[idx], degs[idx] = old_x, old_y, old_deg
             all_vertices[idx] = old_verts
 
-    final_penalty = count_overlap_penalty(all_vertices)
-    return xs, ys, degs, final_penalty == 0
+    # 成功判定のしきい値
+    return xs, ys, degs, (current_penalty <= 1e-9)
+
+
+@njit(cache=True, fastmath=True)
+def point_to_segment_dist_sq(px, py, x1, y1, x2, y2):
+    """
+    点(px, py) と 線分(x1, y1)-(x2, y2) の最短距離の「二乗」を返す。
+    線分の端点も考慮する。
+    """
+    # 線分の長さの二乗
+    l2 = (x1 - x2) ** 2 + (y1 - y2) ** 2
+
+    if l2 == 0:
+        # 線分がつぶれている場合
+        return (px - x1) ** 2 + (py - y1) ** 2
+
+    # 線分上の射影点 t (0.0 <= t <= 1.0) を求める
+    t = ((px - x1) * (x2 - x1) + (py - y1) * (y2 - y1)) / l2
+    t = max(0.0, min(1.0, t))
+
+    # 射影点の座標
+    proj_x = x1 + t * (x2 - x1)
+    proj_y = y1 + t * (y2 - y1)
+
+    # 距離の二乗
+    return (px - proj_x) ** 2 + (py - proj_y) ** 2
 
 
 # -----------------------------------------------------------------------------
@@ -564,11 +597,11 @@ if __name__ == "__main__":
     seed_base = int(opt_cfg.get("seed_base", 42))
 
     # Two-stage Optimization Parameters
-    screening_iters = 2000  # 高速に形状の良し悪しを判定
+    screening_iters = 5000  # 高速に形状の良し悪しを判定
     final_iters = n_iters  # 十分な時間をかけて最適化
 
     # Physics Squeeze Parameters
-    physics_iters = 50000  # 物理演算の試行回数
+    physics_iters = 100000  # 物理演算の試行回数
     physics_ratios = [0.90, 0.93, 0.95, 0.97, 0.98, 0.99]  # 圧縮率の候補
 
     print(f"\nOptimizing groups {n_min} to {n_max}...")
