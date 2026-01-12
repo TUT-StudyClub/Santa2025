@@ -762,12 +762,14 @@ if __name__ == "__main__":
     target_range = opt_cfg.get("target_range")
 
     # Two-stage Optimization Parameters
-    screening_iters = 5000  # 高速に形状の良し悪しを判定
-    final_iters = n_iters  # 十分な時間をかけて最適化
+    screening_iters = int(opt_cfg.get("screening_iters", 5000))  # 高速に形状の良し悪しを判定
+    final_iters = int(opt_cfg.get("final_iters", n_iters))  # 十分な時間をかけて最適化
 
     # Physics Squeeze Parameters
-    physics_iters = 100000  # 物理演算の試行回数
-    physics_ratios = [0.90, 0.93, 0.95, 0.97, 0.98, 0.99]  # 圧縮率の候補
+    physics_iters = int(opt_cfg.get("physics_iters", 100000))  # 物理演算の試行回数
+    physics_ratios = opt_cfg.get("physics_ratios", [0.90, 0.93, 0.95, 0.97, 0.98, 0.99])  # 圧縮率の候補
+    physics_pos_delta = float(opt_cfg.get("physics_pos_delta", 0.05))
+    physics_ang_delta = float(opt_cfg.get("physics_ang_delta", 5.0))
 
     print(f"\nOptimizing groups {n_min} to {n_max}...")
     if use_penalty_sa:
