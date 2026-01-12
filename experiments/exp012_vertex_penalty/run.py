@@ -393,6 +393,165 @@ def optimize_pattern_sa(  # noqa: PLR0915
     return best_xs, best_ys, best_degs, best_score
 
 
+@njit(cache=True)
+def count_overlap_pairs(all_vertices: list[np.ndarray]) -> int:
+    n = len(all_vertices)
+    penalty = 0
+    for i in range(n):
+        for j in range(i + 1, n):
+            if polygons_overlap(all_vertices[i], all_vertices[j]):
+                penalty += 1
+    return penalty
+
+
+@njit(cache=True)
+def count_overlaps_for_tree(tree_idx: int, tree_verts: np.ndarray, all_vertices: list[np.ndarray]) -> int:
+    n = len(all_vertices)
+    penalty = 0
+    for j in range(n):
+        if j == tree_idx:
+            continue
+        if polygons_overlap(tree_verts, all_vertices[j]):
+            penalty += 1
+    return penalty
+
+
+@njit(cache=True)
+def optimize_pattern_sa_penalty(  # noqa: PLR0915
+    init_xs: np.ndarray,
+    init_ys: np.ndarray,
+    init_degs: np.ndarray,
+    n_iters: int,
+    pos_delta: float,
+    ang_delta: float,
+    t_max: float,
+    t_min: float,
+    penalty_weight: float,
+    penalty_growth: float,
+    random_seed: int,
+) -> tuple[
+    np.ndarray,
+    np.ndarray,
+    np.ndarray,
+    float,
+    int,
+    float,
+    np.ndarray,
+    np.ndarray,
+    np.ndarray,
+    float,
+    bool,
+]:
+    """重なり許容のペナルティ付きSA最適化"""
+    np.random.seed(random_seed)
+    n = len(init_xs)
+
+    xs = init_xs.copy()
+    ys = init_ys.copy()
+    degs = init_degs.copy()
+
+    all_vertices = [get_tree_vertices(xs[i], ys[i], degs[i]) for i in range(n)]
+
+    current_score = calculate_score(all_vertices)
+    current_penalty = count_overlap_pairs(all_vertices)
+    current_cost = current_score + penalty_weight * current_penalty
+
+    best_cost = current_cost
+    best_score = current_score
+    best_penalty = current_penalty
+    best_xs = xs.copy()
+    best_ys = ys.copy()
+    best_degs = degs.copy()
+
+    best_valid_score = math.inf
+    best_valid_xs = xs.copy()
+    best_valid_ys = ys.copy()
+    best_valid_degs = degs.copy()
+    has_valid = False
+    if current_penalty == 0:
+        best_valid_score = current_score
+        best_valid_xs = xs.copy()
+        best_valid_ys = ys.copy()
+        best_valid_degs = degs.copy()
+        has_valid = True
+
+    t_factor = -math.log(t_max / t_min)
+
+    for step in range(n_iters):
+        current_t = t_max * math.exp(t_factor * step / n_iters)
+        progress = step / n_iters
+        decay = 1.0 - 0.8 * progress
+        cur_pos = pos_delta * decay
+        cur_ang = ang_delta * decay
+        weight = penalty_weight * (1.0 + penalty_growth * progress)
+
+        tree_idx = np.random.randint(0, n)
+        move_type = np.random.randint(0, 4)
+
+        old_x, old_y, old_deg = xs[tree_idx], ys[tree_idx], degs[tree_idx]
+        old_verts = all_vertices[tree_idx]
+        old_overlap = count_overlaps_for_tree(tree_idx, old_verts, all_vertices)
+
+        if move_type in (0, 3):
+            xs[tree_idx] += (np.random.random() * 2.0 - 1.0) * cur_pos
+        if move_type in (1, 3):
+            ys[tree_idx] += (np.random.random() * 2.0 - 1.0) * cur_pos
+        if move_type in (2, 3):
+            degs[tree_idx] = (degs[tree_idx] + (np.random.random() * 2.0 - 1.0) * cur_ang) % 360.0
+
+        new_verts = get_tree_vertices(xs[tree_idx], ys[tree_idx], degs[tree_idx])
+        all_vertices[tree_idx] = new_verts
+        new_overlap = count_overlaps_for_tree(tree_idx, new_verts, all_vertices)
+        new_penalty = current_penalty - old_overlap + new_overlap
+
+        new_score = calculate_score(all_vertices)
+        new_cost = new_score + weight * new_penalty
+        delta = new_cost - current_cost
+
+        accept = False
+        if delta < 0:
+            accept = True
+        elif current_t > 1e-10 and np.random.random() < math.exp(-delta / current_t):  # noqa: PLR2004
+            accept = True
+
+        if accept:
+            current_score = new_score
+            current_penalty = new_penalty
+            current_cost = new_cost
+
+            if new_cost < best_cost:
+                best_cost = new_cost
+                best_score = new_score
+                best_penalty = new_penalty
+                best_xs[:] = xs[:]
+                best_ys[:] = ys[:]
+                best_degs[:] = degs[:]
+
+            if new_penalty == 0 and new_score < best_valid_score:
+                best_valid_score = new_score
+                best_valid_xs[:] = xs[:]
+                best_valid_ys[:] = ys[:]
+                best_valid_degs[:] = degs[:]
+                has_valid = True
+        else:
+            xs[tree_idx], ys[tree_idx], degs[tree_idx] = old_x, old_y, old_deg
+            all_vertices[tree_idx] = old_verts
+
+    return (
+        best_xs,
+        best_ys,
+        best_degs,
+        best_score,
+        best_penalty,
+        best_cost,
+        best_valid_xs,
+        best_valid_ys,
+        best_valid_degs,
+        best_valid_score,
+        has_valid,
+    )
+
+
 # -----------------------------------------------------------------------------
 # Data Loading/Saving
 # -----------------------------------------------------------------------------
@@ -562,16 +721,53 @@ if __name__ == "__main__":
     T_max = float(opt_cfg["T_max"])
     T_min = float(opt_cfg["T_min"])
     seed_base = int(opt_cfg.get("seed_base", 42))
+    use_penalty_sa = bool(opt_cfg.get("use_penalty_sa", False))
+    penalty_weight = float(opt_cfg.get("penalty_weight", 0.0))
+    penalty_growth = float(opt_cfg.get("penalty_growth", 0.0))
+    target_groups = opt_cfg.get("target_groups", [])
+    target_top_k = int(opt_cfg.get("target_top_k", 0))
+    target_range = opt_cfg.get("target_range")
 
     # Two-stage Optimization Parameters
-    screening_iters = 2000  # 高速に形状の良し悪しを判定
-    final_iters = n_iters  # 十分な時間をかけて最適化
+    screening_iters = int(opt_cfg.get("screening_iters", 2000))  # 高速に形状の良し悪しを判定
+    final_iters = int(opt_cfg.get("final_iters", n_iters))  # 十分な時間をかけて最適化
 
     # Physics Squeeze Parameters
-    physics_iters = 50000  # 物理演算の試行回数
-    physics_ratios = [0.90, 0.93, 0.95, 0.97, 0.98, 0.99]  # 圧縮率の候補
+    physics_iters = int(opt_cfg.get("physics_iters", 50000))  # 物理演算の試行回数
+    physics_ratios = opt_cfg.get("physics_ratios", [0.90, 0.93, 0.95, 0.97, 0.98, 0.99])  # 圧縮率の候補
+    physics_pos_delta = float(opt_cfg.get("physics_pos_delta", 0.05))
+    physics_ang_delta = float(opt_cfg.get("physics_ang_delta", 5.0))
 
     print(f"\nOptimizing groups {n_min} to {n_max}...")
+    if use_penalty_sa:
+        print(f"  Penalty SA: weight={penalty_weight}, growth={penalty_growth}")
+
+    range_min = n_min
+    range_max = n_max
+    if isinstance(target_range, (list, tuple)) and len(target_range) == 2:
+        range_min = max(n_min, int(target_range[0]))
+        range_max = min(n_max, int(target_range[1]))
+
+    target_group_set = None
+    if target_groups:
+        target_groups = sorted({int(n) for n in target_groups if n_min <= int(n) <= n_max})
+        target_group_set = set(target_groups)
+        print(f"  対象グループ数: {len(target_groups)}")
+    elif target_top_k > 0:
+        scores = []
+        for n in range(range_min, range_max + 1):
+            start_idx = n * (n - 1) // 2
+            verts = [
+                get_tree_vertices(all_xs[start_idx + i], all_ys[start_idx + i], all_degs[start_idx + i])
+                for i in range(n)
+            ]
+            score = calculate_score(verts)
+            scores.append((score, n))
+        scores.sort(reverse=True, key=lambda x: x[0])
+        k = min(target_top_k, len(scores))
+        target_groups = sorted([n for _, n in scores[:k]])
+        target_group_set = set(target_groups)
+        print(f"  対象グループ数: {len(target_groups)} (top_k={k}, range={range_min}-{range_max})")
 
     new_xs = all_xs.copy()
     new_ys = all_ys.copy()
@@ -584,6 +780,8 @@ if __name__ == "__main__":
     angles = [0.0, 45.0, 90.0, 135.0]
 
     for n in tqdm(range(n_min, n_max + 1), desc="Optimizing"):
+        if target_group_set is not None and n not in target_group_set:
+            continue
         # データインデックスの計算（N=1からの累積和）
         start_idx = n * (n - 1) // 2
 
@@ -647,55 +845,144 @@ if __name__ == "__main__":
         best_ys_group = new_ys[start_idx : start_idx + n].copy()
         best_degs_group = new_degs[start_idx : start_idx + n].copy()
 
+        physics_seed_cost = math.inf
+        physics_seed_xs = best_xs_group.copy()
+        physics_seed_ys = best_ys_group.copy()
+        physics_seed_degs = best_degs_group.copy()
+
         # 予選勝者の本番実行
         if best_candidate_params is not None:
             init_xs, init_ys, init_degs, best_seed = best_candidate_params
-            opt_xs, opt_ys, opt_degs, score = optimize_pattern_sa(
-                init_xs,
-                init_ys,
-                init_degs,
-                final_iters,
-                pos_delta,
-                ang_delta,
-                T_max,
-                T_min,
-                best_seed,
-            )
-            if score < best_score:
-                best_score = score
-                best_xs_group[:] = opt_xs[:]
-                best_ys_group[:] = opt_ys[:]
-                best_degs_group[:] = opt_degs[:]
+            if use_penalty_sa:
+                (
+                    opt_xs,
+                    opt_ys,
+                    opt_degs,
+                    opt_score,
+                    opt_penalty,
+                    opt_cost,
+                    valid_xs,
+                    valid_ys,
+                    valid_degs,
+                    valid_score,
+                    has_valid,
+                ) = optimize_pattern_sa_penalty(
+                    init_xs,
+                    init_ys,
+                    init_degs,
+                    final_iters,
+                    pos_delta,
+                    ang_delta,
+                    T_max,
+                    T_min,
+                    penalty_weight,
+                    penalty_growth,
+                    best_seed,
+                )
+                if has_valid and valid_score < best_score:
+                    best_score = valid_score
+                    best_xs_group[:] = valid_xs[:]
+                    best_ys_group[:] = valid_ys[:]
+                    best_degs_group[:] = valid_degs[:]
+                if opt_cost < physics_seed_cost and opt_penalty >= 0:
+                    physics_seed_cost = opt_cost
+                    physics_seed_xs = opt_xs.copy()
+                    physics_seed_ys = opt_ys.copy()
+                    physics_seed_degs = opt_degs.copy()
+            else:
+                opt_xs, opt_ys, opt_degs, score = optimize_pattern_sa(
+                    init_xs,
+                    init_ys,
+                    init_degs,
+                    final_iters,
+                    pos_delta,
+                    ang_delta,
+                    T_max,
+                    T_min,
+                    best_seed,
+                )
+                if score < best_score:
+                    best_score = score
+                    best_xs_group[:] = opt_xs[:]
+                    best_ys_group[:] = opt_ys[:]
+                    best_degs_group[:] = opt_degs[:]
+                if score < physics_seed_cost:
+                    physics_seed_cost = score
+                    physics_seed_xs = opt_xs.copy()
+                    physics_seed_ys = opt_ys.copy()
+                    physics_seed_degs = opt_degs.copy()
 
         # 既存配置からの微修正も並行して実施
         base_xs = new_xs[start_idx : start_idx + n].copy()
         base_ys = new_ys[start_idx : start_idx + n].copy()
         base_degs = new_degs[start_idx : start_idx + n].copy()
 
-        opt_xs, opt_ys, opt_degs, score = optimize_pattern_sa(
-            base_xs,
-            base_ys,
-            base_degs,
-            final_iters,
-            pos_delta,
-            ang_delta,
-            T_max,
-            T_min,
-            seed_base + n * 9999,
-        )
-        if score < best_score:
-            best_score = score
-            best_xs_group[:] = opt_xs[:]
-            best_ys_group[:] = opt_ys[:]
-            best_degs_group[:] = opt_degs[:]
+        if use_penalty_sa:
+            (
+                opt_xs,
+                opt_ys,
+                opt_degs,
+                opt_score,
+                opt_penalty,
+                opt_cost,
+                valid_xs,
+                valid_ys,
+                valid_degs,
+                valid_score,
+                has_valid,
+            ) = optimize_pattern_sa_penalty(
+                base_xs,
+                base_ys,
+                base_degs,
+                final_iters,
+                pos_delta,
+                ang_delta,
+                T_max,
+                T_min,
+                penalty_weight,
+                penalty_growth,
+                seed_base + n * 9999,
+            )
+            if has_valid and valid_score < best_score:
+                best_score = valid_score
+                best_xs_group[:] = valid_xs[:]
+                best_ys_group[:] = valid_ys[:]
+                best_degs_group[:] = valid_degs[:]
+            if opt_cost < physics_seed_cost and opt_penalty >= 0:
+                physics_seed_cost = opt_cost
+                physics_seed_xs = opt_xs.copy()
+                physics_seed_ys = opt_ys.copy()
+                physics_seed_degs = opt_degs.copy()
+        else:
+            opt_xs, opt_ys, opt_degs, score = optimize_pattern_sa(
+                base_xs,
+                base_ys,
+                base_degs,
+                final_iters,
+                pos_delta,
+                ang_delta,
+                T_max,
+                T_min,
+                seed_base + n * 9999,
+            )
+            if score < best_score:
+                best_score = score
+                best_xs_group[:] = opt_xs[:]
+                best_ys_group[:] = opt_ys[:]
+                best_degs_group[:] = opt_degs[:]
+            if score < physics_seed_cost:
+                physics_seed_cost = score
+                physics_seed_xs = opt_xs.copy()
+                physics_seed_ys = opt_ys.copy()
+                physics_seed_degs = opt_degs.copy()
 
         # ---------------------------------------------------------
         # Phase 3: Physics Squeeze (物理ベース重なり解消)
         # ---------------------------------------------------------
         # ここまでのベスト解をさらに強制圧縮して、壁抜けを試みる
-        current_best_xs = best_xs_group.copy()
-        current_best_ys = best_ys_group.copy()
-        current_best_degs = best_degs_group.copy()
+        current_best_xs = physics_seed_xs.copy()
+        current_best_ys = physics_seed_ys.copy()
+        current_best_degs = physics_seed_degs.copy()
 
         for ratio in physics_ratios:
             sq_xs, sq_ys, sq_degs, success = optimize_overlap_resolution(
@@ -704,8 +991,8 @@ if __name__ == "__main__":
                 current_best_degs,
                 target_scale=ratio,
                 n_iters=physics_iters,
-                pos_delta=0.05,
-                ang_delta=5.0,
+                pos_delta=physics_pos_delta,
+                ang_delta=physics_ang_delta,
                 seed=seed_base + n * 777,
             )
 
@@ -746,10 +1033,25 @@ if __name__ == "__main__":
     print(f"  Total improvement: {baseline_total - final_score:+.6f}")
     print(f"  Improved groups:   {improved_groups}")
 
-    # Always save the latest result regardless of score improvement
-    out_path = CONFIG["paths"]["output"]
-    save_submission(out_path, new_xs, new_ys, new_degs)
-    print(f"Saved to {out_path}")
+    baseline_improved = final_score < baseline_total - 1e-9
+    if baseline_improved:
+        print("Baseline比較: 改善あり")
+    else:
+        print("Baseline比較: 改善なし")
 
-    if final_score >= baseline_total:
-        print("No improvement from baseline")
+    out_path = CONFIG["paths"]["output"]
+    if os.path.exists(out_path):
+        ref_xs, ref_ys, ref_degs = load_submission_data(out_path)
+        ref_score = calculate_total_score(ref_xs, ref_ys, ref_degs)
+        print(f"  既存submissionスコア: {ref_score:.6f}")
+        should_save = final_score < ref_score - 1e-9
+        no_save_reason = "submissionより改善なしのため上書きしません"
+    else:
+        should_save = baseline_improved
+        no_save_reason = "Baselineから改善なしのためsubmissionを作成しません"
+
+    if should_save:
+        save_submission(out_path, new_xs, new_ys, new_degs)
+        print(f"submissionを更新しました: {out_path}")
+    else:
+        print(no_save_reason)

@@ -10,6 +10,11 @@
 
 | Date | Author | Branch/PR | Change | Seed | CV | LB | Command/Config | Note |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| 2026-01-12 | yuhei | - | exp012_vertex_penalty top30集中 | 42 | - | score=70.781496 | `uv run python experiments/exp012_vertex_penalty/run.py exp=003` | 改善なし、既存submission=70.779244で上書きなし |
+| 2026-01-12 | yuhei | - | exp012_vertex_penalty ペナルティSA | 42 | - | score=70.781496 | `uv run python experiments/exp012_vertex_penalty/run.py exp=001` | 改善なし、既存submission=70.779244で上書きなし |
+| 2026-01-12 | yuhei | - | exp007_intensive 非対称シード | 42 | - | score=70.781236 | `uv run python experiments/exp007_intensive/run.py exp=003` | 改善あり（+0.000260）だが既存submission=70.779244のため上書きなし |
+| 2026-01-11 | yuhei | - | exp011_dense_pack 非対称グリッド | 42 | - | score=70.781496 | `uv run python experiments/exp011_dense_pack/run.py exp=003` | 改善なし、既存submission=70.779244で上書きなし |
+| 2026-01-11 | yuhei | - | exp011_dense_pack 非対称ジッター | 42 | - | score=70.781496 | `uv run python experiments/exp011_dense_pack/run.py exp=002` | 改善なし、既存submission=70.779244で上書きなし |
 | 2026-01-11 | yuhei | - | exp007_intensive 21-100限定 | 42 | - | score=70.781236 | `uv run ./experiments/exp007_intensive/run.py exp=002` | baseline 70.781496 → 70.781236（+0.000260）、submission.csv 出力 |
 | 2026-01-11 | haruto | exp/kotou_20260111 | exp0012_vertex_penalty 頂点ペナルティ法の実装 | 42 | - | score=70.781495651088 | `python ./experiments/exp0012_vertex_penalty/run.py` | - |
 | 2026-01-10 | haruto | exp/kotou_20260110 | exp0011_dense_pack グリッド形状の探索範囲を拡大 | 42 | - | score=70.829248956305 | `python ./experiments/exp0011_dense_pack/run.py` | - |

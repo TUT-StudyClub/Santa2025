@@ -1,0 +1,34 @@
+paths:
+  baseline: "submissions/baseline.csv"
+  output: "submissions/submission.csv"
+
+tree_shape:
+  trunk_w: 0.15
+  trunk_h: 0.2
+  base_w: 0.7
+  mid_w: 0.4
+  top_w: 0.25
+  tip_y: 0.8
+  tier_1_y: 0.5
+  tier_2_y: 0.25
+  base_y: 0.0
+  trunk_bottom_y: -0.2
+
+optimization:
+  n_min: 21
+  n_max: 100
+  n_iters: 60000
+  screening_iters: 1500
+  final_iters: 60000
+  pos_delta: 0.08
+  ang_delta: 20.0
+  T_max: 0.05
+  T_min: 0.0001
+  seed_base: 42
+  use_penalty_sa: true
+  penalty_weight: 0.005
+  penalty_growth: 12.0
+  physics_iters: 40000
+  physics_ratios: [0.92, 0.94, 0.96, 0.98, 0.99]
+  physics_pos_delta: 0.06
+  physics_ang_delta: 6.0

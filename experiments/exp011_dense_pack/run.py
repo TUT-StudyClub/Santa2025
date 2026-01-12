@@ -279,6 +279,80 @@ def generate_hexagonal_pattern(
     return xs, ys, degs
 
 
+def generate_asymmetric_pattern(
+    n: int,
+    spacing: float,
+    angle_offset: float,
+    fixed_cols: int,
+    rng: np.random.Generator,
+    row_jitter: float,
+    col_jitter: float,
+    angle_jitter: float,
+    row_spacing_factor: float,
+    row_shift: float,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    cols = fixed_cols if fixed_cols > 0 else int(math.ceil(math.sqrt(n)))
+    rows = int(math.ceil(n / cols))
+
+    row_jitter = min(max(row_jitter, 0.0), 0.9)
+    col_jitter = min(max(col_jitter, 0.0), 0.9)
+    row_spacing = spacing * max(row_spacing_factor, 1e-6)
+
+    col_offsets = np.zeros(cols, dtype=np.float64)
+    for col in range(1, cols):
+        step = spacing * (1.0 + rng.uniform(-col_jitter, col_jitter))
+        col_offsets[col] = col_offsets[col - 1] + step
+
+    row_offsets = np.zeros(rows, dtype=np.float64)
+    for row in range(1, rows):
+        step = row_spacing * (1.0 + rng.uniform(-row_jitter, row_jitter))
+        row_offsets[row] = row_offsets[row - 1] + step
+
+    row_angle = rng.uniform(-angle_jitter, angle_jitter, size=rows)
+    col_angle = rng.uniform(-angle_jitter, angle_jitter, size=cols)
+    if row_shift > 0.0:
+        row_shifts = rng.uniform(-row_shift, row_shift, size=rows)
+    else:
+        row_shifts = np.zeros(rows, dtype=np.float64)
+
+    xs = np.zeros(n, dtype=np.float64)
+    ys = np.zeros(n, dtype=np.float64)
+    degs = np.zeros(n, dtype=np.float64)
+    idx = 0
+    for row in range(rows):
+        for col in range(cols):
+            if idx >= n:
+                break
+            xs[idx] = col_offsets[col] + row_shifts[row]
+            ys[idx] = row_offsets[row]
+            degs[idx] = (angle_offset + row_angle[row] + col_angle[col]) % 360.0
+            idx += 1
+
+    return xs, ys, degs
+
+
+def apply_pattern_jitter(
+    xs: np.ndarray,
+    ys: np.ndarray,
+    degs: np.ndarray,
+    jitter_xy: float,
+    jitter_deg: float,
+    rng: np.random.Generator,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    if jitter_xy <= 0.0 and jitter_deg <= 0.0:
+        return xs, ys, degs
+
+    new_xs = xs.copy()
+    new_ys = ys.copy()
+    new_degs = degs.copy()
+    if jitter_xy > 0.0:
+        new_xs += rng.uniform(-jitter_xy, jitter_xy, size=new_xs.shape)
+        new_ys += rng.uniform(-jitter_xy, jitter_xy, size=new_ys.shape)
+    if jitter_deg > 0.0:
+        new_degs = (new_degs + rng.uniform(-jitter_deg, jitter_deg, size=new_degs.shape)) % 360.0
+    return new_xs, new_ys, new_degs
+
+
 @njit(cache=True)
 def generate_diagonal_pattern(
     n: int, spacing: float, angle1: float, angle2: float
@@ -465,6 +539,16 @@ if __name__ == "__main__":
     baseline_restarts = int(opt_cfg.get("baseline_restarts", 1))
     baseline_jitter_xy = float(opt_cfg.get("baseline_jitter_xy", 0.0))
     baseline_jitter_deg = float(opt_cfg.get("baseline_jitter_deg", 0.0))
+    candidate_jitter_xy = float(opt_cfg.get("candidate_jitter_xy", 0.0))
+    candidate_jitter_deg = float(opt_cfg.get("candidate_jitter_deg", 0.0))
+    candidate_jitter_seed_offset = int(opt_cfg.get("candidate_jitter_seed_offset", 0))
+    asym_enabled = bool(opt_cfg.get("asym_enabled", False))
+    asym_row_jitter = float(opt_cfg.get("asym_row_jitter", 0.0))
+    asym_col_jitter = float(opt_cfg.get("asym_col_jitter", 0.0))
+    asym_angle_jitter = float(opt_cfg.get("asym_angle_jitter", 0.0))
+    asym_row_spacing_factor = float(opt_cfg.get("asym_row_spacing_factor", 0.75))
+    asym_row_shift = float(opt_cfg.get("asym_row_shift", 0.0))
+    asym_seed_offset = int(opt_cfg.get("asym_seed_offset", 10000))
 
     spacings = [float(s) for s in spacings]
     angles = [float(a) for a in angles]
@@ -476,6 +560,18 @@ if __name__ == "__main__":
     print(
         f"  Baseline restarts: {baseline_restarts} (jitter_xy={baseline_jitter_xy}, jitter_deg={baseline_jitter_deg})"
     )
+    if candidate_jitter_xy > 0.0 or candidate_jitter_deg > 0.0:
+        print(
+            "  Candidate jitter: "
+            f"xy={candidate_jitter_xy}, deg={candidate_jitter_deg}, seed_offset={candidate_jitter_seed_offset}"
+        )
+    if asym_enabled:
+        print(
+            "  Asym pattern: "
+            f"row_jitter={asym_row_jitter}, col_jitter={asym_col_jitter}, "
+            f"angle_jitter={asym_angle_jitter}, row_spacing_factor={asym_row_spacing_factor}, "
+            f"row_shift={asym_row_shift}"
+        )
 
     new_xs = all_xs.copy()
     new_ys = all_ys.copy()
@@ -520,19 +616,50 @@ if __name__ == "__main__":
                     # generator関数は fixed_cols 引数を受け取るように修正済みであることを前提とする
                     xs1, ys1, degs1 = generate_interlocking_pattern(n, spacing, angle, n_cols)
                     if len(xs1) == n:
-                        candidates.append((xs1, ys1, degs1))
+                        candidates.append((xs1, ys1, degs1, 0))
 
                     # パターンB: Hexagonal (六角形配置)
                     xs2, ys2, degs2 = generate_hexagonal_pattern(n, spacing, angle, n_cols)
                     if len(xs2) == n:
-                        candidates.append((xs2, ys2, degs2))
+                        candidates.append((xs2, ys2, degs2, 1))
+
+                    # パターンC: Asymmetric grid (非対称配置)
+                    if asym_enabled:
+                        rng_asym = np.random.default_rng(seed + asym_seed_offset)
+                        xs3, ys3, degs3 = generate_asymmetric_pattern(
+                            n,
+                            spacing,
+                            angle,
+                            n_cols,
+                            rng_asym,
+                            asym_row_jitter,
+                            asym_col_jitter,
+                            asym_angle_jitter,
+                            asym_row_spacing_factor,
+                            asym_row_shift,
+                        )
+                        if len(xs3) == n:
+                            candidates.append((xs3, ys3, degs3, 2))
 
                     # 各候補に対して軽量なSAを実行
-                    for c_xs, c_ys, c_degs in candidates:
+                    for c_xs, c_ys, c_degs, c_id in candidates:
+                        xs_c = c_xs
+                        ys_c = c_ys
+                        degs_c = c_degs
+                        if candidate_jitter_xy > 0.0 or candidate_jitter_deg > 0.0:
+                            rng = np.random.default_rng(seed + candidate_jitter_seed_offset + c_id)
+                            xs_c, ys_c, degs_c = apply_pattern_jitter(
+                                xs_c,
+                                ys_c,
+                                degs_c,
+                                candidate_jitter_xy,
+                                candidate_jitter_deg,
+                                rng,
+                            )
                         _, _, _, score = optimize_pattern_sa(
-                            c_xs,
-                            c_ys,
-                            c_degs,
+                            xs_c,
+                            ys_c,
+                            degs_c,
                             screening_iters,
                             pos_delta,
                             ang_delta,

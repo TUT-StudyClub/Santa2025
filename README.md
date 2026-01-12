@@ -236,9 +236,3 @@ uv run scripts/visualize_experiments.py
 - `scripts/`: 補助スクリプト（DL、分析など）
 - `configs/`: 共通設定（必要に応じて）
 - `docs/`: 運用/実験ログ
-
-## 困ったとき（よくある詰まり）
-- `uv: command not found` → uv をインストールしてからやり直してください（公式: https://docs.astral.sh/uv/）
-- Kaggle のダウンロードが失敗する → コンペの Join/ルール同意、`~/.kaggle/kaggle.json` の配置、`chmod 600` を確認
-- `pre-commit` が落ちる → まず `uv run pre-commit run -a` で修正し、再コミット
-- うっかり `data/` や `outputs/` を Git に入れた → `git rm -r --cached data outputs submissions` してからコミット
