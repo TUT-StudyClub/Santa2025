@@ -150,10 +150,11 @@ uv run python experiments/exp000_sample/run.py exp=001 exp.debug=true
 
 ## 開発コマンド（よく使う）
 ```bash
-make fmt     # format
-make lint    # lint
-make test    # tests
-make uv-exp EXP=000 CFG=001   # 実験実行（uv）
+- フォーマット: `make fmt` (Ruff)
+- Lint: `make lint` (Ruff)
+- 型チェック: `make type` (Ty)
+- 全チェック: `make check` (Lint + Type)
+- テスト: `make test`
 ```
 
 ## 依存関係を追加したい（例）
