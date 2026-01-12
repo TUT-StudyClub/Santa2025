@@ -9,7 +9,7 @@ import numpy as np
 import pandas as pd
 from numba import njit
 
-# Tree shape parameters
+# 木の形状パラメータ
 TRUNK_W = 0.15
 BASE_W = 0.7
 MID_W = 0.4
@@ -107,13 +107,24 @@ def load_submission_data(filepath: str) -> tuple[np.ndarray, np.ndarray, np.ndar
     return np.array(all_xs), np.array(all_ys), np.array(all_degs)
 
 
-def main():
+def main():  # noqa: PLR0915
     parser = argparse.ArgumentParser(description="提出ファイルのスコアを分析します。")
-    parser.add_argument("--input", default="submissions/baseline.csv", help="提出CSVのパス")
+    parser.add_argument("--input", default="submissions/submission.csv", help="提出CSVのパス")
+    parser.add_argument(
+        "--target-range",
+        default=None,
+        help="レンジ合計のカンマ区切り (例: 8.0196,14.3787,13.9196,17.0612,16.8016)",
+    )
+    parser.add_argument(
+        "--worst-by-range",
+        type=int,
+        default=0,
+        help="各レンジでスコアが高い上位Nグループを表示",
+    )
     args = parser.parse_args()
 
     filepath = args.input
-    print(f"Analyzing: {filepath}")
+    print(f"分析対象: {filepath}")
 
     all_xs, all_ys, all_degs = load_submission_data(filepath)
 
@@ -129,12 +140,28 @@ def main():
         scores.append((n, score, side))
         total += score
 
-    print(f"\nTotal score: {total:.6f}")
-    print("\nRange totals:")
+    print(f"\n合計スコア: {total:.6f}")
+    print("\nレンジ合計:")
+    range_totals = []
     for start, end in RANGES:
         range_score = sum(score for n, score, _ in scores if start <= n <= end)
+        range_totals.append(range_score)
         print(f"  {start:>3}-{end:<3}: {range_score:.6f}")
-    print(f"\n{'Group':>6} {'Score':>12} {'Side':>10} {'Efficiency':>12}")
+
+    if args.target_range:
+        parts = [p.strip() for p in args.target_range.split(",") if p.strip()]
+        if len(parts) != len(RANGES):
+            raise SystemExit(f"--target-range は {len(RANGES)} 個の数値が必要です: {args.target_range}")
+        target_vals = [float(p) for p in parts]
+        target_total = sum(target_vals)
+        diff_total = total - target_total
+        print("\nターゲット差分:")
+        for (start, end), my_val, tgt_val in zip(RANGES, range_totals, target_vals, strict=True):
+            diff = my_val - tgt_val
+            print(f"  {start:>3}-{end:<3}: 自分={my_val:.6f} ターゲット={tgt_val:.6f} 差分={diff:+.6f}")
+        print(f"  合計: 自分={total:.6f} ターゲット={target_total:.6f} 差分={diff_total:+.6f}")
+
+    print(f"\n{'グループ':>6} {'スコア':>12} {'辺長':>10} {'効率':>12}")
     print("-" * 45)
 
     # 理論的な最小スコア（完璧な正方形配置の場合）を計算
@@ -144,26 +171,37 @@ def main():
     # スコアが高い（悪い）グループを表示
     sorted_scores = sorted(scores, key=lambda x: x[1], reverse=True)
 
-    print("\nWorst 20 groups (highest scores):")
+    print("\nワースト20グループ（スコアが高い順）:")
     for n, score, side in sorted_scores[:20]:
         # 効率 = 理論最小 / 実際のスコア
         theoretical_min = tree_area  # 理想的には side^2/n = tree_area
         efficiency = theoretical_min / score * 100
         print(f"{n:>6} {score:>12.6f} {side:>10.4f} {efficiency:>11.1f}%")
 
-    print("\nBest 20 groups (lowest scores):")
+    print("\nベスト20グループ（スコアが低い順）:")
     for n, score, side in sorted_scores[-20:]:
         theoretical_min = tree_area
         efficiency = theoretical_min / score * 100
         print(f"{n:>6} {score:>12.6f} {side:>10.4f} {efficiency:>11.1f}%")
 
     # スコアの分布
-    print("\nScore distribution by group size:")
+    print("\nグループサイズ別の平均スコア:")
     for start_n in range(1, 201, 20):
         end_n = min(start_n + 19, 200)
         group_scores = [s[1] for s in scores if start_n <= s[0] <= end_n]
         avg_score = sum(group_scores) / len(group_scores)
-        print(f"  Groups {start_n:>3}-{end_n:>3}: avg score = {avg_score:.6f}")
+        print(f"  グループ {start_n:>3}-{end_n:>3}: 平均スコア = {avg_score:.6f}")
+
+    if args.worst_by_range > 0:
+        print("\nレンジ別ワーストグループ:")
+        for start, end in RANGES:
+            range_scores = [s for s in scores if start <= s[0] <= end]
+            worst = sorted(range_scores, key=lambda x: x[1], reverse=True)[: args.worst_by_range]
+            print(f"  {start:>3}-{end:<3}:")
+            for n, score, side in worst:
+                theoretical_min = tree_area
+                efficiency = theoretical_min / score * 100
+                print(f"    {n:>3} {score:>12.6f} {side:>10.4f} {efficiency:>11.1f}%")
 
 
 if __name__ == "__main__":

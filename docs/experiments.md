@@ -4,12 +4,19 @@
 推奨: 新しい行を上に追加。
 
 ## 実験結果まとめ（日本語）
-- 現時点の最良スコア: 70.836885（exp007_intensive exp=000）
-- スコア推移: 178.9197 → 159.3497 → 117.2827 → 109.8679 → 70.935929406660 → 82.898630 → 70.924429 → 70.909422580984 → 70.892099 → 70.836885 → 70.781495651088 → 70.778910759459
+- 現時点の最良スコア: 70.778841（exp014_pressure_penalty exp=000）
+- スコア推移: 178.9197 → 159.3497 → 117.2827 → 109.8679 → 70.935929406660 → 82.898630 → 70.924429 → 70.909422580984 → 70.892099 → 70.836885 → 70.781495651088 → 70.778910759459 → 70.778841
 - 目標スコア: 69
 
 | Date | Author | Branch/PR | Change | Seed | CV | LB | Command/Config | Note |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| 2026-01-12 | yuhei | - | exp017_shake_slide 揺らし+スライド | 42 | - | score=70.781496 | `uv run python experiments/exp017_shake_slide/run.py exp=000` | 改善なし、既存submission=70.773909で上書きなし |
+| 2026-01-12 | yuhei | - | exp016_gap_slide 強め押し込み | - | - | score=70.781496 | `uv run python experiments/exp016_gap_slide/run.py exp=002` | 改善なし、既存submission=70.773909で上書きなし |
+| 2026-01-12 | yuhei | - | exp016_gap_slide 斜め方向スライド | - | - | score=70.781496 | `uv run python experiments/exp016_gap_slide/run.py exp=001` | 改善なし、既存submission=70.773909で上書きなし |
+| 2026-01-12 | yuhei | - | exp015_pattern_penalty spacing拡張 | 4242 | - | score=70.778841 | `uv run python experiments/exp015_pattern_penalty/run.py exp=001` | 改善なし、既存submission=70.778841で上書きなし |
+| 2026-01-12 | yuhei | - | exp015_pattern_penalty パターン初期化+ペナルティSA | 4242 | - | score=70.778841 | `uv run python experiments/exp015_pattern_penalty/run.py exp=000` | 改善なし、既存submission=70.778841で上書きなし |
+| 2026-01-12 | yuhei | - | exp014_pressure_penalty 圧縮+ペナルティSA | 4242 | - | score=70.778841 | `uv run python experiments/exp014_pressure_penalty/run.py exp=000` | 改善なし、既存submission=70.778841で上書きなし |
+| 2026-01-12 | yuhei | - | exp013_boundary_pack 21-100ワースト20 | 4242 | - | score=70.778841 | `uv run python experiments/exp013_boundary_pack/run.py exp=002` | 改善なし、既存submission=70.778841で上書きなし |
 | 2026-01-12 | yuhei | - | exp012_vertex_penalty top30集中 | 42 | - | score=70.781496 | `uv run python experiments/exp012_vertex_penalty/run.py exp=003` | 改善なし、既存submission=70.779244で上書きなし |
 | 2026-01-12 | yuhei | - | exp012_vertex_penalty ペナルティSA | 42 | - | score=70.781496 | `uv run python experiments/exp012_vertex_penalty/run.py exp=001` | 改善なし、既存submission=70.779244で上書きなし |
 | 2026-01-12 | yuhei | - | exp007_intensive 非対称シード | 42 | - | score=70.781236 | `uv run python experiments/exp007_intensive/run.py exp=003` | 改善あり（+0.000260）だが既存submission=70.779244のため上書きなし |
