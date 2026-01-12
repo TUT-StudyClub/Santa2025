@@ -19,7 +19,7 @@ optimization:
   n_min: 21
   n_max: 80
   # 各パターンあたりの反復回数
-  n_iters: 100000
+  n_iters: 300000
   # 位置の探索幅
   pos_delta: 0.08
   # 角度の探索幅（度）
