@@ -29,6 +29,9 @@
 - 提出ファイルは `submissions/` に置く（例: `submissions/submission.csv`）
 - 過去の実験ファイルを修正しない
 - チューニングなどは既存設定を上書きせず、新しい `exp/XXX.yaml` を追加して結果を保存する
+- ベースラインは、baseline.csv とする
+- submission.csv は、baseline.csv よりスコアが高く、submission.csv よりスコアが高い時にだけ更新するようにする
+- baseline.csv よりスコアが良くても、submission.csv よりスコアが良くない場合は、submission.csv を更新しないようにする
 
 ## ディレクトリ構成
 - `experiments/`: 実験本体と設定

@@ -10,6 +10,10 @@
 
 | Date | Author | Branch/PR | Change | Seed | CV | LB | Command/Config | Note |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| 2026-01-13 | yuhei | - | exp018_gap_fill 探索強化 | - | - | score=70.771942 | `uv run python experiments/exp018_gap_fill/run.py exp=004` | 改善なし、既存submission=70.771942で上書きなし |
+| 2026-01-13 | yuhei | - | exp018_gap_fill 全体実行 | - | - | score=70.771942 | `uv run python experiments/exp018_gap_fill/run.py exp=003` | 改善なし、既存submission=70.771942で上書きなし |
+| 2026-01-13 | yuhei | - | exp018_gap_fill 境界候補追加 | - | - | score=70.771942 | `uv run python experiments/exp018_gap_fill/run.py exp=002` | 改善なし、既存submission=70.771942で上書きなし |
+| 2026-01-13 | yuhei | - | exp018_gap_fill ギャップ吸引ログ | - | - | score=70.771942 | `uv run python experiments/exp018_gap_fill/run.py exp=001` | 改善なし、既存submission=70.771942で上書きなし |
 | 2026-01-12 | yuhei | - | exp017_shake_slide 揺らし+スライド | 42 | - | score=70.781496 | `uv run python experiments/exp017_shake_slide/run.py exp=000` | 改善なし、既存submission=70.773909で上書きなし |
 | 2026-01-12 | yuhei | - | exp016_gap_slide 強め押し込み | - | - | score=70.781496 | `uv run python experiments/exp016_gap_slide/run.py exp=002` | 改善なし、既存submission=70.773909で上書きなし |
 | 2026-01-12 | yuhei | - | exp016_gap_slide 斜め方向スライド | - | - | score=70.781496 | `uv run python experiments/exp016_gap_slide/run.py exp=001` | 改善なし、既存submission=70.773909で上書きなし |
