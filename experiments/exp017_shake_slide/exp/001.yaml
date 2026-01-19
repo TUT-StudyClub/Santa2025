@@ -1,0 +1,138 @@
+paths:
+  baseline: "submissions/baseline.csv"
+  baseline_fallback: "submissions/baseline.csv"
+  output: "submissions/submission.csv"
+
+tree_shape:
+  trunk_w: 0.15
+  trunk_h: 0.2
+  base_w: 0.7
+  mid_w: 0.4
+  top_w: 0.25
+  tip_y: 0.8
+  tier_1_y: 0.5
+  tier_2_y: 0.25
+  base_y: 0.0
+  trunk_bottom_y: -0.2
+
+optimization:
+  n_min: 2
+  n_max: 200
+  target_groups:
+    - 21
+    - 22
+    - 23
+    - 24
+    - 25
+    - 26
+    - 27
+    - 28
+    - 29
+    - 30
+    - 31
+    - 32
+    - 33
+    - 34
+    - 35
+    - 36
+    - 37
+    - 38
+    - 39
+    - 40
+    - 41
+    - 42
+    - 43
+    - 44
+    - 45
+    - 46
+    - 47
+    - 48
+    - 49
+    - 50
+    - 51
+    - 52
+    - 53
+    - 54
+    - 55
+    - 56
+    - 57
+    - 58
+    - 59
+    - 60
+    - 61
+    - 62
+    - 63
+    - 64
+    - 65
+    - 66
+    - 67
+    - 68
+    - 69
+    - 70
+    - 71
+    - 72
+    - 73
+    - 74
+    - 75
+    - 76
+    - 77
+    - 78
+    - 79
+    - 80
+    - 81
+    - 82
+    - 83
+    - 84
+    - 85
+    - 86
+    - 87
+    - 88
+    - 89
+    - 90
+    - 91
+    - 92
+    - 93
+    - 94
+    - 95
+    - 96
+    - 97
+    - 98
+    - 99
+    - 100
+    - 121
+    - 122
+    - 123
+    - 124
+    - 125
+    - 126
+    - 127
+    - 128
+    - 129
+    - 130
+    - 131
+    - 132
+    - 133
+    - 134
+    - 135
+    - 136
+    - 137
+    - 138
+    - 139
+    - 140
+  target_top_k: 0
+  target_range: [1, 200]
+
+  shake:
+    enabled: true
+    seed: 42
+    jitter_radius_ratio: 0.18
+    jitter_deg: 5.0
+    per_tree_tries: 10
+
+  gap_slide:
+    sweeps: 5
+    max_step_ratio: 0.8
+    min_step: 0.0001
+    search_iters: 20
+    candidate_fracs: [1.0, 0.8, 0.6, 0.4, 0.25, 0.12, 0.05]
+    directions_deg: [0.0, 30.0, 60.0, 90.0, 120.0, 150.0, 180.0, 210.0, 240.0, 270.0, 300.0, 330.0]

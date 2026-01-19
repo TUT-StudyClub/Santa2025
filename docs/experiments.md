@@ -10,6 +10,14 @@
 
 | Date | Author | Branch/PR | Change | Seed | CV | LB | Command/Config | Note |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| 2026-01-13 | yuhei | - | exp020_symmetric_slide 重心中心 | 42 | - | score=70.781496 | `uv run python experiments/exp020_symmetric_slide/run.py exp=001` | 改善なし、既存submission=70.744149で上書きなし |
+| 2026-01-13 | yuhei | - | exp020_symmetric_slide 点対称+揺らし+スライド | 42 | - | score=70.781496 | `uv run python experiments/exp020_symmetric_slide/run.py exp=000` | 改善なし、既存submission=70.744149で上書きなし |
+| 2026-01-13 | yuhei | - | exp017_shake_slide 21-100/121-140集中 | 42 | - | score=70.781496 | `uv run python experiments/exp017_shake_slide/run.py exp=001` | 改善なし、既存submission=70.744149で上書きなし |
+| 2026-01-13 | yuhei | - | exp018_gap_fill baseline固定+slide強化 | - | - | score=70.781496 | `uv run python experiments/exp018_gap_fill/run.py exp=006` | 改善なし、既存submission=70.744149で上書きなし |
+| 2026-01-13 | yuhei | - | exp018_gap_fill score_tolerance=1e-6 | - | - | score=70.744149 | `uv run python experiments/exp018_gap_fill/run.py exp=005` | 改善なし、既存submission=70.744149で上書きなし |
+| 2026-01-16 | yuhei | - | exp019_rrt SA局所探索（小グループ集中） | 42 | - | score=70.781496 | `uv run python experiments/exp019_rrt/run.py exp=002` | 改善なし、既存submission=70.771942で上書きなし |
+| 2026-01-16 | yuhei | - | exp019_rrt SA局所探索 | 42 | - | score=70.781496 | `uv run python experiments/exp019_rrt/run.py exp=001` | 改善なし、既存submission=70.771942で上書きなし |
+| 2026-01-16 | yuhei | - | exp019_rrt RRT局所探索 | 42 | - | score=70.781496 | `uv run python experiments/exp019_rrt/run.py exp=000` | 改善なし、既存submission=70.771942で上書きなし |
 | 2026-01-13 | yuhei | - | exp018_gap_fill 探索強化 | - | - | score=70.771942 | `uv run python experiments/exp018_gap_fill/run.py exp=004` | 改善なし、既存submission=70.771942で上書きなし |
 | 2026-01-13 | yuhei | - | exp018_gap_fill 全体実行 | - | - | score=70.771942 | `uv run python experiments/exp018_gap_fill/run.py exp=003` | 改善なし、既存submission=70.771942で上書きなし |
 | 2026-01-13 | yuhei | - | exp018_gap_fill 境界候補追加 | - | - | score=70.771942 | `uv run python experiments/exp018_gap_fill/run.py exp=002` | 改善なし、既存submission=70.771942で上書きなし |
