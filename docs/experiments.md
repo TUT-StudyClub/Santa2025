@@ -10,6 +10,7 @@
 
 | Date | Author | Branch/PR | Change | Seed | CV | LB | Command/Config | Note |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| 2026-01-20 | haruto | - | exp021_squeeze Guided SA with Squeeze | 42 | - | score=70.781496 | `python experiments/exp021_squeeze/run.py` | 改善なし、既存submission=70.781496で上書きなし |
 | 2026-01-13 | yuhei | - | exp020_symmetric_slide 重心中心 | 42 | - | score=70.781496 | `uv run python experiments/exp020_symmetric_slide/run.py exp=001` | 改善なし、既存submission=70.744149で上書きなし |
 | 2026-01-13 | yuhei | - | exp020_symmetric_slide 点対称+揺らし+スライド | 42 | - | score=70.781496 | `uv run python experiments/exp020_symmetric_slide/run.py exp=000` | 改善なし、既存submission=70.744149で上書きなし |
 | 2026-01-13 | yuhei | - | exp017_shake_slide 21-100/121-140集中 | 42 | - | score=70.781496 | `uv run python experiments/exp017_shake_slide/run.py exp=001` | 改善なし、既存submission=70.744149で上書きなし |
