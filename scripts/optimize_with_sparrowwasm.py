@@ -104,6 +104,17 @@ def polygon_signed_area(points: np.ndarray) -> float:
     return 0.5 * float(np.sum(poly[:-1, 0] * poly[1:, 1] - poly[1:, 0] * poly[:-1, 1]))
 
 
+def polygon_centroid(points: np.ndarray) -> tuple[float, float]:
+    poly = np.vstack([points, points[0]])
+    cross = poly[:-1, 0] * poly[1:, 1] - poly[1:, 0] * poly[:-1, 1]
+    area2 = float(np.sum(cross))
+    if abs(area2) < 1e-15:
+        raise ValueError("多角形の面積が0に近く、重心を計算できません")
+    cx = float(np.sum((poly[:-1, 0] + poly[1:, 0]) * cross)) / (3.0 * area2)
+    cy = float(np.sum((poly[:-1, 1] + poly[1:, 1]) * cross)) / (3.0 * area2)
+    return cx, cy
+
+
 def make_ccw_closed(points: np.ndarray) -> np.ndarray:
     pts = points.copy()
     if polygon_signed_area(pts) < 0:
@@ -185,10 +196,10 @@ def rotate_centers(xs: np.ndarray, ys: np.ndarray, angle_deg: float) -> tuple[np
     return new_xs, new_ys
 
 
-def make_allowed_orientations(step_deg: float) -> list[float]:
+def make_allowed_orientations(step_deg: float) -> list[float] | None:
     step_deg = float(step_deg)
     if step_deg <= 0:
-        raise ValueError("--orient-step は正の値が必要です")
+        return None
     vals = np.arange(0.0, 360.0, step_deg, dtype=np.float64)
     # 例: step=7 の場合に 360 を超えないようにする
     return [float(v) for v in vals]
@@ -231,29 +242,22 @@ def optimize_one_group_with_sparrow(
     fine_rot_step: float,
     fine_rot_window: float,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray, float, float]:
-    # sparrow-cli 用の形状は「左下が (0,0)」になるように平行移動したものを渡す
-    min_x = float(TREE_POINTS[:, 0].min())
-    min_y = float(TREE_POINTS[:, 1].min())
-    shift = np.array([-min_x, -min_y], dtype=np.float64)
-
     if sparrow_scale <= 0:
         raise ValueError("--sparrow-scale は正の値が必要です")
 
     scale = float(sparrow_scale)
-    poly = make_ccw_closed((TREE_POINTS + shift) * scale)
+    poly = make_ccw_closed(TREE_POINTS * scale)
 
-    instance = {
-        "name": f"group_{n:03d}",
-        "items": [
-            {
-                "id": 0,
-                "demand": n,
-                "allowed_orientations": make_allowed_orientations(orient_step),
-                "shape": {"type": "simple_polygon", "data": poly.tolist()},
-            }
-        ],
-        "strip_height": float(strip_height) * scale,
+    item = {
+        "id": 0,
+        "demand": n,
+        "shape": {"type": "simple_polygon", "data": poly.tolist()},
     }
+    orientations = make_allowed_orientations(orient_step)
+    if orientations is not None:
+        item["allowed_orientations"] = orientations
+
+    instance = {"name": f"group_{n:03d}", "items": [item], "strip_height": float(strip_height) * scale}
 
     with tempfile.TemporaryDirectory() as td:
         td_path = Path(td)
@@ -279,18 +283,20 @@ def optimize_one_group_with_sparrow(
     if status != "complete" or len(layouts) != n:
         raise RuntimeError(f"group={n}: 配置に失敗しました（status={status}, placed={len(layouts)}/{n}）")
 
-    xs_raw = np.array([float(it["position_x"]) for it in layouts], dtype=np.float64) / scale
-    ys_raw = np.array([float(it["position_y"]) for it in layouts], dtype=np.float64) / scale
+    # sparrow-cli の position_x / position_y は「shape の重心位置」として扱う
+    cx_raw = np.array([float(it["position_x"]) for it in layouts], dtype=np.float64) / scale
+    cy_raw = np.array([float(it["position_y"]) for it in layouts], dtype=np.float64) / scale
     degs = np.array([float(it["rotation_degrees"]) for it in layouts], dtype=np.float64) % 360.0
 
-    # 形状を shift して渡しているので、評価系の原点（幹の付け根中央）へ戻す
+    # Kaggle側は「幹の付け根中央(0,0)」を基準に配置するので、重心位置から平行移動を復元
+    tree_cx, tree_cy = polygon_centroid(TREE_POINTS)
     ang = np.deg2rad(degs)
     cos_a = np.cos(ang)
     sin_a = np.sin(ang)
-    shift_x = shift[0] * cos_a - shift[1] * sin_a
-    shift_y = shift[0] * sin_a + shift[1] * cos_a
-    xs = xs_raw + shift_x
-    ys = ys_raw + shift_y
+    rot_cx = tree_cx * cos_a - tree_cy * sin_a
+    rot_cy = tree_cx * sin_a + tree_cy * cos_a
+    xs = cx_raw - rot_cx
+    ys = cy_raw - rot_cy
 
     # 追加で「全体回転」を入れて正方形側長を下げる（Kaggleの目的関数に寄せる）
     pts = build_group_points(xs, ys, degs)
@@ -332,7 +338,12 @@ def main() -> None:  # noqa: PLR0915
     parser.add_argument("--workers", type=int, default=4, help="sparrow-cli の worker 数")
     parser.add_argument("--seed", type=int, default=None, help="sparrow-cli の乱数 seed（省略可）")
     parser.add_argument("--early-termination", action="store_true", help="sparrow-cli の早期停止を有効化")
-    parser.add_argument("--orient-step", type=float, default=5.0, help="許容回転角の刻み（度）")
+    parser.add_argument(
+        "--orient-step",
+        type=float,
+        default=5.0,
+        help="許容回転角の刻み（度）。0以下の場合は allowed_orientations を省略（回転制約なし）",
+    )
     parser.add_argument(
         "--sparrow-scale",
         type=float,

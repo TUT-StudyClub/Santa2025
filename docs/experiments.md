@@ -4,12 +4,13 @@
 推奨: 新しい行を上に追加。
 
 ## 実験結果まとめ（日本語）
-- 現時点の最良スコア: 70.778841（exp014_pressure_penalty exp=000）
-- スコア推移: 178.9197 → 159.3497 → 117.2827 → 109.8679 → 70.935929406660 → 82.898630 → 70.924429 → 70.909422580984 → 70.892099 → 70.836885 → 70.781495651088 → 70.778910759459 → 70.778841
+- 現時点の最良スコア: 70.658982（sparroWASM group=022 微改善）
+- スコア推移: 178.9197 → 159.3497 → 117.2827 → 109.8679 → 70.935929406660 → 82.898630 → 70.924429 → 70.909422580984 → 70.892099 → 70.836885 → 70.781495651088 → 70.778910759459 → 70.778841 → 70.658982
 - 目標スコア: 69
 
 | Date | Author | Branch/PR | Change | Seed | CV | LB | Command/Config | Note |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| 2026-01-20 | yuhei | - | sparroWASM group=022 微改善 | - | - | score=70.658982 | `uv run python scripts/diff_submissions.py --base submissions/archive/submission.csv --new submissions/submission.csv` | group=022 のみ差し替え（diff=-0.000046） |
 | 2026-01-13 | yuhei | - | exp020_symmetric_slide 重心中心 | 42 | - | score=70.781496 | `uv run python experiments/exp020_symmetric_slide/run.py exp=001` | 改善なし、既存submission=70.744149で上書きなし |
 | 2026-01-13 | yuhei | - | exp020_symmetric_slide 点対称+揺らし+スライド | 42 | - | score=70.781496 | `uv run python experiments/exp020_symmetric_slide/run.py exp=000` | 改善なし、既存submission=70.744149で上書きなし |
 | 2026-01-13 | yuhei | - | exp017_shake_slide 21-100/121-140集中 | 42 | - | score=70.781496 | `uv run python experiments/exp017_shake_slide/run.py exp=001` | 改善なし、既存submission=70.744149で上書きなし |
