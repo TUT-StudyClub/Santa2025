@@ -76,3 +76,6 @@ mlruns/
 # Caches / temp
 .cache/
 tmp/
+
+# === External / vendor ===
+third_party/
