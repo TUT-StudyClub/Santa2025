@@ -4,6 +4,7 @@
 
 import argparse
 import math
+from pathlib import Path
 
 import numpy as np
 import pandas as pd
@@ -91,8 +92,14 @@ def calculate_score(all_vertices: list[np.ndarray]) -> float:
     return side * side / len(all_vertices)
 
 
-def load_submission_data(filepath: str) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
-    df = pd.read_csv(filepath)
+def load_submission_data(filepath: str, fallback_path: str | None = None) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    target_path = filepath
+    if not Path(target_path).exists():
+        if fallback_path is None or not Path(fallback_path).exists():
+            raise FileNotFoundError(f"submission not found: {filepath}")
+        target_path = fallback_path
+
+    df = pd.read_csv(target_path)
     all_xs, all_ys, all_degs = [], [], []
     for n in range(1, 201):
         prefix = f"{n:03d}_"
@@ -111,6 +118,11 @@ def main():  # noqa: PLR0915
     parser = argparse.ArgumentParser(description="提出ファイルのスコアを分析します。")
     parser.add_argument("--input", default="submissions/submission.csv", help="提出CSVのパス")
     parser.add_argument(
+        "--fallback",
+        default="submissions/baseline.csv",
+        help="--input が見つからない場合に使うfallback（例: submissions/baseline.csv）。空文字で無効化",
+    )
+    parser.add_argument(
         "--target-range",
         default=None,
         help="レンジ合計のカンマ区切り (例: 8.0196,14.3787,13.9196,17.0612,16.8016)",
@@ -126,7 +138,11 @@ def main():  # noqa: PLR0915
     filepath = args.input
     print(f"分析対象: {filepath}")
 
-    all_xs, all_ys, all_degs = load_submission_data(filepath)
+    fallback = str(args.fallback).strip() or None
+    if not Path(filepath).exists() and fallback is not None and Path(fallback).exists():
+        print(f"  ※ {filepath} が見つからないため fallback を使用します: {fallback}")
+
+    all_xs, all_ys, all_degs = load_submission_data(filepath, fallback_path=fallback)
 
     # 各グループのスコアを計算
     scores = []

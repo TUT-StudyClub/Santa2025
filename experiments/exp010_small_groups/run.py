@@ -396,8 +396,14 @@ def optimize_group_multistart(  # noqa: PLR0913
 # -----------------------------------------------------------------------------
 # Data Loading/Saving
 # -----------------------------------------------------------------------------
-def load_submission_data(filepath: str) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
-    df = pd.read_csv(filepath)
+def load_submission_data(filepath: str, fallback_path: str | None = None) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    target_path = filepath
+    if not os.path.exists(target_path):
+        if fallback_path is None or not os.path.exists(fallback_path):
+            raise FileNotFoundError(f"submission not found: {filepath}")
+        target_path = fallback_path
+
+    df = pd.read_csv(target_path)
     all_xs, all_ys, all_degs = [], [], []
     for n in range(1, 201):
         prefix = f"{n:03d}_"
@@ -448,9 +454,10 @@ if __name__ == "__main__":
     print(f"Config: {CONFIG_PATH}")
 
     baseline_path = CONFIG["paths"]["baseline"]
+    baseline_fallback = CONFIG["paths"].get("baseline_fallback")
     print(f"\nBaseline: {baseline_path}")
 
-    all_xs, all_ys, all_degs = load_submission_data(baseline_path)
+    all_xs, all_ys, all_degs = load_submission_data(baseline_path, baseline_fallback)
     baseline_total = calculate_total_score(all_xs, all_ys, all_degs)
     print(f"Baseline total score: {baseline_total:.6f}")
 
@@ -495,13 +502,13 @@ if __name__ == "__main__":
         base_ys = new_ys[start : start + n].copy()
         base_degs = new_degs[start : start + n].copy()
 
-        _, _, _, base_opt_score = optimize_small_group_sa(
+        base_opt_xs, base_opt_ys, base_opt_degs, base_opt_score = optimize_small_group_sa(
             n, base_xs, base_ys, base_degs, n_iters, pos_delta, ang_delta, t_max, t_min, seed + 5000
         )
 
         # より良い方を選択
         if base_opt_score < opt_score:
-            opt_xs, opt_ys, opt_degs, opt_score = base_xs, base_ys, base_degs, base_opt_score
+            opt_xs, opt_ys, opt_degs, opt_score = base_opt_xs, base_opt_ys, base_opt_degs, base_opt_score
 
         if opt_score < orig_score - 1e-9:
             improvement = orig_score - opt_score
@@ -521,10 +528,24 @@ if __name__ == "__main__":
     print(f"  Improved groups:   {improved_groups}")
     print("=" * 80)
 
-    # 保存
-    if final_score < baseline_total:
-        out_path = CONFIG["paths"]["output"]
-        save_submission(out_path, new_xs, new_ys, new_degs)
-        print(f"Saved to {out_path}")
+    baseline_improved = final_score < baseline_total - 1e-9
+    if baseline_improved:
+        print("ベースライン比較: 改善あり")
     else:
-        print("No improvement - keeping baseline")
+        print("ベースライン比較: 改善なし")
+
+    out_path = CONFIG["paths"]["output"]
+    if os.path.exists(out_path):
+        ref_xs, ref_ys, ref_degs = load_submission_data(out_path)
+        ref_score = calculate_total_score(ref_xs, ref_ys, ref_degs)
+        print(f"既存submissionスコア: {ref_score:.6f}")
+        if final_score < ref_score - 1e-9:
+            save_submission(out_path, new_xs, new_ys, new_degs)
+            print(f"submissionを更新しました: {out_path}")
+        else:
+            print("submissionより改善なしのため上書きしません")
+    elif baseline_improved:
+        save_submission(out_path, new_xs, new_ys, new_degs)
+        print(f"submissionを作成しました: {out_path}")
+    else:
+        print("ベースラインから改善なしのためsubmissionを作成しません")

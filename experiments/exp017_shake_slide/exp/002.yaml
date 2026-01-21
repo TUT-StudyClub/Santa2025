@@ -1,0 +1,38 @@
+paths:
+  baseline: "submissions/submission.csv"
+  baseline_fallback: "submissions/baseline.csv"
+  output: "submissions/submission.csv"
+
+tree_shape:
+  trunk_w: 0.15
+  trunk_h: 0.2
+  base_w: 0.7
+  mid_w: 0.4
+  top_w: 0.25
+  tip_y: 0.8
+  tier_1_y: 0.5
+  tier_2_y: 0.25
+  base_y: 0.0
+  trunk_bottom_y: -0.2
+
+optimization:
+  n_min: 2
+  n_max: 200
+  target_groups: []
+  target_top_k: 80
+  target_range: [2, 100]
+
+  shake:
+    enabled: true
+    seed: 4242
+    jitter_radius_ratio: 0.20
+    jitter_deg: 10.0
+    per_tree_tries: 12
+
+  gap_slide:
+    sweeps: 6
+    max_step_ratio: 0.75
+    min_step: 0.0001
+    search_iters: 20
+    candidate_fracs: [1.0, 0.75, 0.5, 0.25, 0.12, 0.06, 0.03]
+    directions_deg: [0.0, 30.0, 60.0, 90.0, 120.0, 150.0, 180.0, 210.0, 240.0, 270.0, 300.0, 330.0]
