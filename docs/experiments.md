@@ -10,6 +10,7 @@
 
 | Date | Author | Branch/PR | Change | Seed | CV | LB | Command/Config | Note |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| 2026-01-21 | haruto | - | exp022_seed_ensemble Seed Ensemble |  | - | score=70.630028 | `uv run python experiments/exp022_seed_ensemble/run.py exp=000` | 重なり発生のためLB改善なし |
 | 2026-01-21 | yuhei | - | exp021_ssa SSA局所探索（group=008 試運転） | 2042 | - | score=70.628314 | `uv run python experiments/exp021_ssa/run.py exp=001` | 改善なし（出力なし） |
 | 2026-01-21 | yuhei | - | submission.csv 現状確認（best更新） | - | - | score=70.628314 | `uv run python scripts/analyze_scores.py --input submissions/submission.csv` | 生成経路は要追跡（Kaggle側でtouchがoverlap扱いになる場合あり） |
 | 2026-01-20 | yuhei | - | exp018_gap_fill top_k=40 (21-100) | - | - | score=70.658810 | `uv run python experiments/exp018_gap_fill/run.py exp=007` | group=022 改善、submission.csv 更新 |
