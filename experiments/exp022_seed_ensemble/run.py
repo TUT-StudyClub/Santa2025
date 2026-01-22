@@ -1,8 +1,8 @@
 """
-exp022_seed_ensemble: ランダムシードによるアサンブル最適化
+exp021_ssa: Sparrow Search Algorithm (SSA / スズメ探索) による局所探索
 
 各グループの (x, y, deg) を SSA で探索して、スコア（side^2 / n）を改善する。
-Seed Ensemble: 各グループに対し、複数の異なる乱数シードで試行し、最良の結果を採用する。
+ベースラインからの摂動を前提に、重なりが出た個体は「最良個体への線形補間」で修復する。
 """
 
 from __future__ import annotations
@@ -26,7 +26,7 @@ def resolve_config_path() -> str:
     for arg in sys.argv[1:]:
         if arg.startswith("exp="):
             config_name = arg.split("=", 1)[1]
-    return os.path.join("experiments", "exp022_seed_ensemble", "exp", f"{config_name}.yaml")
+    return os.path.join("experiments", "exp021_ssa", "exp", f"{config_name}.yaml")
 
 
 CONFIG_PATH = resolve_config_path()
@@ -876,10 +876,10 @@ def calculate_total_score(all_xs: np.ndarray, all_ys: np.ndarray, all_degs: np.n
 # Main
 # -----------------------------------------------------------------------------
 if __name__ == "__main__":
-    print("SSA局所探索 + Seed Ensemble (exp021_ssa)")
+    print("SSA局所探索 (exp021_ssa)")
     print(f"設定: {CONFIG_PATH}")
 
-    paths_cfg = CONFIG.get("paths", {})
+    paths_cfg = CONFIG["paths"]
     baseline_path = paths_cfg.get("baseline", "submissions/submission.csv")
     fallback_path = paths_cfg.get("baseline_fallback")
     output_path = paths_cfg.get("output", "submissions/submission.csv")
@@ -888,7 +888,7 @@ if __name__ == "__main__":
     baseline_total = calculate_total_score(all_xs, all_ys, all_degs)
     print(f"ベースライン合計スコア: {baseline_total:.6f}")
 
-    opt_cfg = CONFIG.get("optimization", {})
+    opt_cfg = CONFIG["optimization"]
     n_min = int(opt_cfg.get("n_min", 1))
     n_max = int(opt_cfg.get("n_max", 200))
     target_groups = opt_cfg.get("target_groups", [])
@@ -898,7 +898,6 @@ if __name__ == "__main__":
     ssa_cfg = opt_cfg.get("ssa", {})
     pop_size = int(ssa_cfg.get("pop_size", 24))
     n_iters = int(ssa_cfg.get("n_iters", 1000))
-    n_seeds = int(ssa_cfg.get("n_seeds", 1))  # シードアンサンブル回数（デフォルトは1回）
     pd_ratio = float(ssa_cfg.get("pd_ratio", 0.2))
     sd_ratio = float(ssa_cfg.get("sd_ratio", 0.1))
     st = float(ssa_cfg.get("st", 0.8))
@@ -951,7 +950,7 @@ if __name__ == "__main__":
     improved_groups = 0
     total_improved = 0.0
 
-    for n in tqdm(range(range_min, range_max + 1), desc="最適化"):
+    for n in tqdm(range(n_min, n_max + 1), desc="最適化"):
         if target_group_set is not None and n not in target_group_set:
             continue
         if n < 2:
@@ -963,56 +962,37 @@ if __name__ == "__main__":
         degs = new_degs[start : start + n].copy()
 
         orig_score = float(evaluate_group_score(xs, ys, degs))
+        seed = seed_base + n * 1000
+        opt_xs, opt_ys, opt_degs, opt_score = optimize_group_ssa(
+            xs,
+            ys,
+            degs,
+            pop_size,
+            n_iters,
+            pd_ratio,
+            sd_ratio,
+            st,
+            danger_beta,
+            init_pos_delta,
+            init_ang_delta,
+            init_tries,
+            pos_delta,
+            ang_delta,
+            pos_bound_scale,
+            ang_bound,
+            repair_steps,
+            seed,
+            debug,
+        )
 
-        # Seed Ensemble Logic
-        # 各グループの最良結果を保持するための変数
-        best_group_score = orig_score
-        best_group_xs = xs
-        best_group_ys = ys
-        best_group_degs = degs
-
-        # 指定された回数(n_seeds)だけ試行を繰り返す
-        for i in range(n_seeds):
-            seed = seed_base + n * 1000 + i  # シードを変化させる
-
-            run_xs, run_ys, run_degs, run_score = optimize_group_ssa(
-                xs,
-                ys,
-                degs,
-                pop_size,
-                n_iters,
-                pd_ratio,
-                sd_ratio,
-                st,
-                danger_beta,
-                init_pos_delta,
-                init_ang_delta,
-                init_tries,
-                pos_delta,
-                ang_delta,
-                pos_bound_scale,
-                ang_bound,
-                repair_steps,
-                seed,
-                debug,
-            )
-
-            # 各試行の結果が現在の暫定ベストよりも良ければ更新
-            if run_score < best_group_score - 1e-9:
-                best_group_score = run_score
-                best_group_xs = run_xs
-                best_group_ys = run_ys
-                best_group_degs = run_degs
-
-        # 最終的にベースラインよりも改善していれば更新を適用
-        if best_group_score < orig_score - 1e-9:
-            improvement = orig_score - best_group_score
+        if opt_score < orig_score - 1e-9:
+            improvement = orig_score - opt_score
             improved_groups += 1
             total_improved += improvement
-            new_xs[start : start + n] = best_group_xs
-            new_ys[start : start + n] = best_group_ys
-            new_degs[start : start + n] = best_group_degs
-            print(f"  グループ{n:03d}: {orig_score:.6f} -> {best_group_score:.6f} (改善 {improvement:.6f})")
+            new_xs[start : start + n] = opt_xs
+            new_ys[start : start + n] = opt_ys
+            new_degs[start : start + n] = opt_degs
+            print(f"  グループ{n:03d}: {orig_score:.6f} -> {opt_score:.6f} (改善 {improvement:.6f})")
 
     final_score = calculate_total_score(new_xs, new_ys, new_degs)
     print("\n最終結果")

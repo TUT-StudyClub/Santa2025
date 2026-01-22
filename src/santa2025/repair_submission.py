@@ -6,11 +6,11 @@ import pandas as pd
 # ファイルパスの設定 (環境に合わせて変更してください)
 # ==========================================
 # 重なりエラーが出ている現在のファイル
-target_csv = "submissions/submission.csv"
+target_csv = "submissions/submission_ssa_ensemble.csv"
 # 安全なベースラインファイル (サンプル投稿)
 baseline_csv = "submissions/baseline.csv"
 # 出力ファイル名
-output_csv = "submissions/submission_fix.csv"
+output_csv = "submissions/submission_ssa_ensemble_fix.csv"
 
 
 def main():
@@ -30,7 +30,7 @@ def main():
     # 強制的に修正するグループ番号のリスト
     # エラーが出続けるグループ番号をここに追加してください
     # ---------------------------------------------------------
-    groups_to_force_revert = [3]
+    groups_to_force_revert = [42, 43, 48]
 
     print(f"Force reverting groups: {groups_to_force_revert}")
 
@@ -55,7 +55,8 @@ def main():
     df_target.to_csv(output_csv, index=False)
     print("=" * 40)
     print(f"Done! Saved to: {output_csv}")
-    print("This file contains the safe baseline data for Group 154.")
+    # 変更箇所: リストの内容を表示するように修正
+    print(f"This file contains the safe baseline data for Group {groups_to_force_revert}.")
 
 
 if __name__ == "__main__":

@@ -116,7 +116,7 @@ def load_submission_data(filepath: str, fallback_path: str | None = None) -> tup
 
 def main():  # noqa: PLR0915
     parser = argparse.ArgumentParser(description="提出ファイルのスコアを分析します。")
-    parser.add_argument("--input", default="submissions/submission.csv", help="提出CSVのパス")
+    parser.add_argument("--input", default="submissions/submission_fix.csv", help="提出CSVのパス")
     parser.add_argument(
         "--fallback",
         default="submissions/baseline.csv",
