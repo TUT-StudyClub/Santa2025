@@ -12,5 +12,5 @@ shapely
 tqdm
 pyyaml
 shapely==2.1.2
-numba
+numba<0.60
 numpy<2.0.0
