@@ -10,6 +10,7 @@
 
 | Date | Author | Branch/PR | Change | Seed | CV | LB | Command/Config | Note |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| 2026-01-23 | haruto | - | exp023_penalty ペナルティ学習 |  | - | - | `uv run python experiments/exp023_penalty/run.py exp=000` | 重なり発生のためLB改善なし |
 | 2026-01-21 | haruto | - | exp022_seed_ensemble Seed Ensemble |  | - | score=70.630028 | `uv run python experiments/exp022_seed_ensemble/run.py exp=000` | 重なり発生のためLB改善なし |
 | 2026-01-21 | yuhei | - | exp021_ssa SSA局所探索（group=008 試運転） | 2042 | - | score=70.628314 | `uv run python experiments/exp021_ssa/run.py exp=001` | 改善なし（出力なし） |
 | 2026-01-21 | yuhei | - | submission.csv 現状確認（best更新） | - | - | score=70.628314 | `uv run python scripts/analyze_scores.py --input submissions/submission.csv` | 生成経路は要追跡（Kaggle側でtouchがoverlap扱いになる場合あり） |
