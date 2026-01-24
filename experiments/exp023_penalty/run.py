@@ -733,7 +733,7 @@ def calculate_total_score(all_xs: np.ndarray, all_ys: np.ndarray, all_degs: np.n
 
 def find_best_submission(
     submissions_dir: str = "submissions",
-) -> tuple[str, float, np.ndarray, np.ndarray, np.ndarray] | None:
+) -> tuple[str, float, np.ndarray | None, np.ndarray | None, np.ndarray | None] | None:
     """
     submissionsディレクトリ内のすべてのCSVファイルをスキャンして、最もスコアが高いものを返す
     """
