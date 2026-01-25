@@ -1001,5 +1001,8 @@ if __name__ == "__main__":
             final_xs, final_ys, final_degs = best_sub[2], best_sub[3], best_sub[4]
             final_score = best_sub[1]
 
-    save_submission(output_path, final_xs, final_ys, final_degs)
-    print(f"\nsubmissionを更新しました: {output_path} (スコア: {final_score:.6f})")
+    if final_xs is not None and final_ys is not None and final_degs is not None:
+        save_submission(output_path, final_xs, final_ys, final_degs)
+        print(f"\nsubmissionを更新しました: {output_path} (スコア: {final_score:.6f})")
+    else:
+        print("\n有効な解が見つからなかったため、submissionは更新されませんでした。")
