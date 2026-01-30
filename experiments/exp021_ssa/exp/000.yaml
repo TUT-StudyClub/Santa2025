@@ -13,45 +13,45 @@ tree_shape:
   tier_1_y: 0.5
   tier_2_y: 0.25
   base_y: 0.0
-  trunk_bottom_y: -0.2
+  trunk_bottom_y: -2
 
 optimization:
   # 最適化するグループ範囲
-  n_min: 2
+  n_min: 1
   n_max: 200
 
   # 対象グループ指定（空なら top_k で自動選択）
   target_groups: []
   target_top_k: 30
-  target_range: [2, 60]
+  target_range: [21, 100]
 
   # SSA パラメータ
   ssa:
-    pop_size: 24
-    n_iters: 1200
-    pd_ratio: 0.2
+    pop_size: 32
+    n_iters: 2000
+    pd_ratio: 0.3
     sd_ratio: 0.1
     st: 0.8
     danger_beta: 1.0
 
     # 初期化（ベースライン周りの摂動）
-    init_pos_delta: 0.06
-    init_ang_delta: 8.0
-    init_tries: 30
+    init_pos_delta: 0.01
+    init_ang_delta: 2.0
+    init_tries: 50
 
     # 反復中のノイズ（局所探索の温度のように減衰）
     pos_delta: 0.03
-    ang_delta: 6.0
+    ang_delta: 4.0
 
     # 探索境界（基準の bounding side に対する倍率）
-    pos_bound_scale: 2.0
+    pos_bound_scale: 3.0
     ang_bound: 45.0
 
     # 重なりが出たときの修復（二分探索の回数）
     repair_steps: 12
 
     # 乱数シード
-    seed_base: 2042
+    seed_base: 2025
 
     # 詳細ログ
     debug: false
